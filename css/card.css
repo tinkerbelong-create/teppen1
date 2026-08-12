@@ -1,0 +1,175 @@
+/* テッペンとリーヨ！ ── カード
+ * 紙のボードゲームなので、カードは光る板ではなく「紙」に寄せる。
+ * 角はほぼ立てて（3px）、地は生成り、縁に印刷の版ズレを1本だけ入れる。
+ */
+
+.card{
+  --w:var(--cw);
+  inline-size:var(--w);
+  block-size:calc(var(--w) * 1.4);
+  flex:0 0 auto;
+  position:relative;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  background:var(--paper);
+  color:var(--ink);
+  border-radius:var(--r-card);
+  box-shadow:0 1px 0 rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.42);
+  overflow:hidden;
+  cursor:pointer;
+  user-select:none; -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  translate:0; rotate:0deg; scale:1;
+  transition:translate .18s var(--ease-kick), scale .18s var(--ease-kick), filter .18s linear;
+}
+.card::after{                       /* 印刷の版ズレ。1本だけ */
+  content:""; position:absolute; inset:0;
+  border-radius:inherit; pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(27,23,16,.35);
+}
+
+.card__name{
+  font-family:var(--f-disp); font-weight:400;
+  font-size:calc(var(--w) * .132);
+  line-height:1.25;
+  padding:.34em .42em .3em;
+  background:var(--ink); color:var(--paper);
+  display:flex; align-items:center; gap:.3em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.card__art{
+  background-size:cover; background-position:center 22%;
+  background-color:var(--paper-2);
+  position:relative; min-block-size:0;
+}
+.card__art::after{                  /* 紙の目 */
+  content:""; position:absolute; inset:0;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.045) 0 1px, transparent 1px 3px);
+  mix-blend-mode:multiply;
+}
+.card__foot{
+  font-size:calc(var(--w) * .105);
+  line-height:1.32;
+  padding:.3em .38em .34em;
+  background:linear-gradient(180deg, rgba(233,223,201,0), var(--paper) 32%);
+}
+
+/* ワザ名の行（キャラカード） */
+.tline{ display:flex; align-items:center; gap:.24em; white-space:nowrap; overflow:hidden; }
+.tline + .tline{ margin-top:.15em; }
+.tline b{ font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+.tline .req{ font-size:.82em; color:var(--ink-soft); }
+
+/* 種別アイコン */
+.ic{
+  inline-size:1.05em; block-size:1.05em; flex:0 0 auto;
+  border-radius:2px; display:inline-grid; place-items:center;
+  font-size:.78em; font-weight:900; color:#fff;
+  font-family:var(--f-ui);
+}
+.ic--シュート{ background:var(--t-shoot); }
+.ic--ドリブル{ background:var(--t-dribble); }
+.ic--ディフェンス{ background:var(--t-defense); }
+.ic--キャッチ{ background:var(--t-catch); color:#3A2A00; }
+
+/* ポジションの角バッジ */
+.card__pos{
+  position:absolute; inset-block-start:calc(var(--w)*.20); inset-inline-end:0;
+  font-family:var(--f-num); font-size:calc(var(--w)*.105);
+  background:var(--ink); color:var(--paper);
+  padding:.15em .4em;
+}
+.card__pos[data-pos="GK"]{ background:var(--bolt); color:#3A2A00; }
+
+/* 必殺カードの左端の色帯 */
+.card--tech::before{
+  content:""; position:absolute; inset-block:0; inset-inline-start:0; inline-size:4px; z-index:2;
+}
+.card--シュート::before{ background:var(--t-shoot); }
+.card--ドリブル::before{ background:var(--t-dribble); }
+.card--ディフェンス::before{ background:var(--t-defense); }
+.card--キャッチ::before{ background:var(--t-catch); }
+
+/* 出目 */
+.dice-need{
+  font-family:var(--f-num); font-size:calc(var(--w)*.11);
+  background:var(--ink); color:var(--bolt);
+  display:inline-block; padding:.1em .45em; margin-top:.2em;
+  letter-spacing:.04em;
+}
+.pierce{
+  display:inline-block; font-weight:900; font-size:calc(var(--w)*.1);
+  background:var(--raimon); color:#fff; padding:.1em .4em; margin-block-end:.15em;
+}
+
+/* コイン・ボール */
+.card--coin,.card--ball{ display:grid; place-items:center; grid-template-rows:1fr; }
+.card--coin{
+  background:radial-gradient(circle at 38% 30%, #FFE58A, var(--bolt) 42%, var(--bolt-deep) 78%);
+}
+.card--coin .glyph{ font-size:calc(var(--w)*.5); color:#7A5500; line-height:1; }
+.card--coin .cap{ font-family:var(--f-disp); font-size:calc(var(--w)*.11); color:#5D4100; }
+.card--ball{ background:radial-gradient(circle at 40% 32%, #fff, #C8CFC4 70%, #8B948A); }
+.card--ball .glyph{ font-size:calc(var(--w)*.44); line-height:1; }
+.card--ball .cap{ font-family:var(--f-disp); font-size:calc(var(--w)*.11); color:#2A2E28; }
+
+/* 裏面（相手の伏せ札） */
+.card--back{
+  background:
+    repeating-linear-gradient(135deg, rgba(0,0,0,.14) 0 4px, transparent 4px 8px),
+    linear-gradient(160deg, #2B4A6E, #16283C);
+  display:grid; place-items:center;
+}
+.card--back .glyph{ font-size:calc(var(--w)*.42); color:var(--bolt); opacity:.85; }
+
+/* ---------------- 状態 ---------------- */
+
+/* 今すぐ撃てる／拾える：黄の縁がつき、浮き上がり、何ができるかが札に出る */
+.card.is-live{ translate:0 -9px; }
+.card.is-live::after{
+  box-shadow:inset 0 0 0 2px var(--bolt), 0 0 16px rgba(255,206,31,.65);
+}
+.card__hot{
+  position:absolute; inset-block-end:0; inset-inline:0; z-index:4;
+  font-family:var(--f-disp); font-size:calc(var(--w)*.115); text-align:center;
+  background:var(--bolt); color:#3A2A00; padding:.12em 0;
+  letter-spacing:.08em;
+}
+
+/* 相手の番：自分の札は沈む */
+.card.is-dim{
+  filter:saturate(.3) brightness(.6);
+  translate:0 6px;
+}
+.card.is-dim::after{ box-shadow:inset 0 0 0 1px rgba(0,0,0,.45); }
+
+/* 選択中 */
+.card.is-sel{ translate:0 -18px; scale:1.06; z-index:6; }
+.card.is-sel::after{ box-shadow:inset 0 0 0 3px var(--raimon), 0 0 24px rgba(232,84,28,.6); }
+
+/* 手札とベンチのカードは、横スワイプはブラウザに任せて縦ドラッグだけ拾う。
+   こうしないと手札を横にスクロールできなくなる。 */
+.hand .card, .me .card{ touch-action:pan-x; }
+.field .card{ touch-action:pan-y; }
+
+/* キャプテン */
+.card.is-captain::after{ box-shadow:inset 0 0 0 2px var(--raimon); }
+.card__cap{
+  position:absolute; inset-block-start:0; inset-inline-start:0; z-index:3;
+  font-family:var(--f-disp); font-size:calc(var(--w)*.1);
+  background:var(--raimon); color:#fff; padding:.12em .5em;
+}
+
+/* 掴んでいる最中 */
+.card.is-drag{
+  position:fixed; z-index:90; pointer-events:none;
+  transition:none; scale:1.1; rotate:-4deg;
+  box-shadow:0 18px 34px rgba(0,0,0,.6);
+}
+
+/* ちいさい表示（相手の場・場のカード） */
+.card--mini{ --w:calc(var(--cw) * .72); }
+.card--nano{ --w:calc(var(--cw) * .56); }
+.card--nano .card__foot{ display:none; }
+.card--nano{ grid-template-rows:auto 1fr; }

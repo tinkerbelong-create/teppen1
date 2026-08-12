@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>テッペンとリーヨ！ ── テストプレイ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reggae+One&family=Zen+Kaku+Gothic+New:wght@400;700;900&family=Bungee&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/card.css">
+<link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/fx.css">
+</head>
+<body>
+
+<div id="app" class="app" hidden>
+
+  <header class="scoreboard" id="scoreboard">
+    <div class="scoreboard__brand">
+      <span class="brand__bolt" aria-hidden="true">⚡</span>
+      <span class="brand__name">テッペンとリーヨ！</span>
+    </div>
+    <div class="scoreboard__rows" id="scoreRows"></div>
+    <div class="scoreboard__tools">
+      <button type="button" class="tool" id="btnLog" aria-pressed="false">記録</button>
+      <button type="button" class="tool" id="btnMenu">設定</button>
+    </div>
+  </header>
+
+  <main class="pitch" id="pitch">
+    <svg class="pitch__lines" viewBox="0 0 400 700" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="none" stroke="var(--line)" stroke-width="2" opacity=".26">
+        <rect x="10" y="10" width="380" height="680"/>
+        <line x1="10" y1="350" x2="390" y2="350"/>
+        <circle cx="200" cy="350" r="70"/>
+        <circle cx="200" cy="350" r="4" fill="var(--line)" stroke="none"/>
+        <rect x="90" y="10" width="220" height="90"/>
+        <rect x="150" y="10" width="100" height="38"/>
+        <rect x="90" y="600" width="220" height="90"/>
+        <rect x="150" y="652" width="100" height="38"/>
+        <path d="M130 100 A70 70 0 0 0 270 100"/>
+        <path d="M130 600 A70 70 0 0 1 270 600"/>
+      </g>
+    </svg>
+
+    <section class="opponents" id="opponents" aria-label="相手"></section>
+
+    <section class="fieldzone" id="fieldzone">
+      <div class="zone-head">
+        <span class="zone-head__label">場</span>
+        <span class="zone-head__hint" id="fieldHint">コイン1枚で拾える</span>
+      </div>
+      <div class="field" id="field"></div>
+    </section>
+
+    <section class="me" id="me" aria-label="自分"></section>
+  </main>
+
+  <footer class="handbar">
+    <div class="handbar__meta" id="handMeta"></div>
+    <div class="hand" id="hand" aria-label="手札（伏せて持つカード）"></div>
+  </footer>
+
+  <div class="banner" id="banner" hidden></div>
+</div>
+
+<!-- 演出レイヤー -->
+<div class="fx" id="fx" aria-hidden="true"></div>
+
+<!-- リアクションなどの選択 -->
+<div class="chooser" id="chooser" hidden>
+  <div class="chooser__panel" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
+    <h2 class="chooser__title" id="chooserTitle"></h2>
+    <p class="chooser__sub" id="chooserSub"></p>
+    <div class="chooser__cards" id="chooserCards"></div>
+    <div class="chooser__foot" id="chooserFoot"></div>
+  </div>
+</div>
+
+<!-- 記録（補助） -->
+<aside class="logpane" id="logpane" hidden>
+  <div class="logpane__head">記録<button type="button" class="logpane__close" id="btnLogClose">閉じる</button></div>
+  <ol class="logpane__list" id="logList"></ol>
+</aside>
+
+<!-- 設定 / 開始 -->
+<dialog class="sheet" id="setup">
+  <form method="dialog" class="sheet__inner">
+    <h1 class="sheet__title"><span>テッペンと</span><em>リーヨ！</em></h1>
+    <p class="sheet__lead">紙のカードゲームのテストプレイ用。数値はここで全部いじれます。</p>
+
+    <fieldset class="grp">
+      <legend>人数</legend>
+      <div class="seg" id="segPlayers" role="radiogroup" aria-label="人数"></div>
+      <label class="row"><span>あなたも参加する</span>
+        <input type="checkbox" id="optHuman" checked></label>
+    </fieldset>
+
+    <fieldset class="grp">
+      <legend>あなたのキャプテン（円堂守）</legend>
+      <div class="capgrid" id="capGrid"></div>
+    </fieldset>
+
+    <fieldset class="grp">
+      <legend>数値</legend>
+      <label class="num"><span>初期手札</span><input type="number" id="optHand" min="3" max="20" value="12"><i>枚</i></label>
+      <label class="num"><span>勝利に必要な点</span><input type="number" id="optWin" min="1" max="9" value="3"><i>点</i></label>
+      <label class="num"><span>イナズマコイン</span><input type="number" id="optCoin" min="0" max="80" value="24"><i>枚</i></label>
+      <label class="num"><span>必殺カードの複製数</span><input type="number" id="optTech" min="1" max="6" value="3"><i>枚ずつ</i></label>
+      <label class="num"><span>キャラカードの複製数</span><input type="number" id="optChar" min="1" max="6" value="3"><i>枚ずつ</i></label>
+      <label class="num"><span>演出の速さ</span>
+        <select id="optSpeed">
+          <option value="1">じっくり</option>
+          <option value="0.55" selected>ふつう</option>
+          <option value="0.3">はやい</option>
+          <option value="0">なし（数値だけ見る）</option>
+        </select><i></i></label>
+      <p class="grp__note" id="deckNote"></p>
+    </fieldset>
+
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--go" id="btnStart">キックオフ</button>
+      <button type="button" class="btn btn--sub" id="btnSim">CPU同士で回す</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 一括対戦 -->
+<dialog class="sheet" id="simdlg">
+  <div class="sheet__inner">
+    <h1 class="sheet__title"><em>CPU一括対戦</em></h1>
+    <p class="sheet__lead">いまの設定のまま、CPUだけで回して統計を取ります。</p>
+    <label class="num"><span>試合数</span><input type="number" id="simN" min="10" max="3000" step="10" value="300"><i>試合</i></label>
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--go" id="btnSimRun">回す</button>
+      <button type="button" class="btn btn--sub" id="btnSimClose">戻る</button>
+    </div>
+    <div class="simprog" id="simProg" hidden><div class="simprog__bar" id="simProgBar"></div></div>
+    <div class="simout" id="simOut"></div>
+  </div>
+</dialog>
+
+<!-- カード拡大 -->
+<dialog class="zoom" id="zoom">
+  <div class="zoom__inner" id="zoomInner"></div>
+  <button type="button" class="zoom__close" id="zoomClose">閉じる</button>
+</dialog>
+
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/render.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
