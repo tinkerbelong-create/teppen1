@@ -601,6 +601,9 @@
   async function run(g) {
     await fire(g, { k: 'start', ball: g.ball });
     while (!g.over) {
+      /* 途中でやり直したとき、前の試合をここで畳む。
+       * 放っておくと2つの試合が同時に進んで盤面が混ざる。 */
+      if (g.aborted) { g.over = true; g.endReason = 'aborted'; return g; }
       await runTurn(g);
       if (g.over) break;
       g.turnCount++;

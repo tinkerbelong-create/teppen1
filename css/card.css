@@ -1,175 +1,277 @@
 /* テッペンとリーヨ！ ── カード
- * 紙のボードゲームなので、カードは光る板ではなく「紙」に寄せる。
- * 角はほぼ立てて（3px）、地は生成り、縁に印刷の版ズレを1本だけ入れる。
+ *
+ * 画像が主役。文字は画像の上に薄い帯で重ねて、絵を削らない。
+ *   キャラクター … 256x256 の正方形 → 正方形の顔タイル（切らずに全部見せる）
+ *   必殺技       … 1919x1020 の横長 → 横長カード。カードの比率を画像に合わせるので、絵は一切切れない
  */
 
-.card{
-  --w:var(--cw);
-  inline-size:var(--w);
-  block-size:calc(var(--w) * 1.4);
-  flex:0 0 auto;
-  position:relative;
-  display:grid;
-  grid-template-rows:auto 1fr auto;
+/* ================================================================
+ * 顔タイル
+ * ============================================================== */
+.tile{
+  --tw:7.2rem;
+  inline-size:var(--tw);
+  flex:0 0 auto; position:relative;
   background:var(--paper);
-  color:var(--ink);
-  border-radius:var(--r-card);
-  box-shadow:0 1px 0 rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.42);
-  overflow:hidden;
-  cursor:pointer;
-  user-select:none; -webkit-user-select:none;
+  border-radius:var(--r-tile);
+  box-shadow:0 1px 0 rgba(0,0,0,.5), 0 0.3rem 0.7rem rgba(0,0,0,.4);
+  cursor:pointer; user-select:none; -webkit-user-select:none;
   -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-  translate:0; rotate:0deg; scale:1;
-  transition:translate .18s var(--ease-kick), scale .18s var(--ease-kick), filter .18s linear;
+  translate:0; scale:1;
+  transition:translate .16s var(--ease-kick), scale .16s var(--ease-kick), filter .16s linear;
 }
-.card::after{                       /* 印刷の版ズレ。1本だけ */
-  content:""; position:absolute; inset:0;
-  border-radius:inherit; pointer-events:none;
-  box-shadow:inset 0 0 0 1px rgba(27,23,16,.35);
+.tile::after{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(20,17,11,.4);
 }
-
-.card__name{
+.tile__face{
+  inline-size:100%; aspect-ratio:1/1;
+  background-color:#F6F1E6;
+  background-repeat:no-repeat;
+  border-radius:var(--r-tile) var(--r-tile) 0 0;
+}
+.tile__name{
   font-family:var(--f-disp); font-weight:400;
-  font-size:calc(var(--w) * .132);
-  line-height:1.25;
-  padding:.34em .42em .3em;
+  font-size:calc(var(--tw) * .152);
+  line-height:1.5;
+  text-align:center;
+  padding:.1em .2em;
   background:var(--ink); color:var(--paper);
+  border-radius:0 0 var(--r-tile) var(--r-tile);
+  white-space:nowrap; overflow:hidden;
+}
+.tile__pos{
+  position:absolute; inset-block-start:0; inset-inline-end:0;
+  font-family:var(--f-num); font-size:calc(var(--tw) * .125);
+  background:var(--ink); color:var(--paper);
+  padding:.1em .35em; border-start-end-radius:var(--r-tile);
+}
+.tile__pos[data-pos="GK"]{ background:var(--bolt); color:#3A2A00; }
+.tile__cap{
+  position:absolute; inset-block-start:0; inset-inline-start:0;
+  font-family:var(--f-disp); font-size:calc(var(--tw) * .115);
+  background:var(--raimon); color:#fff; padding:.1em .45em;
+  border-start-start-radius:var(--r-tile);
+}
+.tile.is-captain::after{ box-shadow:inset 0 0 0 0.13rem var(--raimon); }
+.tile--sm{ --tw:4.1rem; }
+.tile--back{ inline-size:var(--tw); aspect-ratio:.72; background:linear-gradient(160deg,#2B4A6E,#16283C); }
+
+/* ================================================================
+ * 必殺カード（横長）
+ * ============================================================== */
+.tcard{
+  --cw:20rem;
+  inline-size:var(--cw);
+  block-size:calc(var(--cw) / 1.88);     /* 画像と同じ比率。だから絵が切れない */
+  flex:0 0 auto; position:relative;
+  border-radius:var(--r-card);
+  overflow:hidden;
+  background:var(--ink);
+  cursor:pointer; user-select:none; -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  box-shadow:0 1px 0 rgba(0,0,0,.5), 0 0.4rem 0.9rem rgba(0,0,0,.45);
+  translate:0; scale:1;
+  transition:translate .16s var(--ease-kick), scale .16s var(--ease-kick), filter .16s linear;
+}
+.tcard::after{
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(20,17,11,.55);
+}
+.tcard__art{
+  position:absolute; inset:0;
+  background-size:cover; background-position:center;
+  background-repeat:no-repeat;
+}
+/* 種別の色帯。左端に1本だけ */
+.tcard::before{
+  content:""; position:absolute; inset-block:0; inset-inline-start:0;
+  inline-size:0.3rem; z-index:3;
+}
+.tcard--シュート::before{ background:var(--t-shoot); }
+.tcard--ドリブル::before{ background:var(--t-dribble); }
+.tcard--ディフェンス::before{ background:var(--t-defense); }
+.tcard--キャッチ::before{ background:var(--t-catch); }
+
+.tcard__top{
+  position:absolute; inset-block-start:0; inset-inline:0; z-index:2;
   display:flex; align-items:center; gap:.3em;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  padding:calc(var(--cw)*.028) calc(var(--cw)*.03) calc(var(--cw)*.05) calc(var(--cw)*.048);
+  background:linear-gradient(180deg, rgba(10,14,8,.86) 0%, rgba(10,14,8,.62) 55%, transparent 100%);
 }
-.card__art{
-  background-size:cover; background-position:center 22%;
-  background-color:var(--paper-2);
-  position:relative; min-block-size:0;
+.tcard__name{
+  font-family:var(--f-disp); font-weight:400;
+  font-size:calc(var(--cw) * .072);
+  color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.9);
+  white-space:nowrap;
 }
-.card__art::after{                  /* 紙の目 */
-  content:""; position:absolute; inset:0;
-  background:repeating-linear-gradient(0deg, rgba(0,0,0,.045) 0 1px, transparent 1px 3px);
-  mix-blend-mode:multiply;
+.tcard__foot{
+  position:absolute; inset-block-end:0; inset-inline:0; z-index:2;
+  display:flex; align-items:flex-end; justify-content:space-between; gap:.4em;
+  padding:calc(var(--cw)*.05) calc(var(--cw)*.03) calc(var(--cw)*.028) calc(var(--cw)*.048);
+  background:linear-gradient(0deg, rgba(10,14,8,.88) 0%, rgba(10,14,8,.6) 55%, transparent 100%);
 }
-.card__foot{
-  font-size:calc(var(--w) * .105);
-  line-height:1.32;
-  padding:.3em .38em .34em;
-  background:linear-gradient(180deg, rgba(233,223,201,0), var(--paper) 32%);
+.tcard__who{ display:flex; gap:calc(var(--cw)*.012); flex:0 0 auto; }
+.tcard__info{ display:flex; flex-direction:column; align-items:flex-end; gap:.15em; text-align:end; min-inline-size:0; }
+.tcard__eff{
+  font-size:calc(var(--cw) * .043); line-height:1.35; color:#F0EADA;
+  text-shadow:0 1px 2px rgba(0,0,0,.9);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-clamp:2; overflow:hidden;
 }
 
-/* ワザ名の行（キャラカード） */
-.tline{ display:flex; align-items:center; gap:.24em; white-space:nowrap; overflow:hidden; }
-.tline + .tline{ margin-top:.15em; }
-.tline b{ font-weight:700; overflow:hidden; text-overflow:ellipsis; }
-.tline .req{ font-size:.82em; color:var(--ink-soft); }
+/* 必要な選手を示す小さい丸い顔 */
+.rchip{
+  inline-size:calc(var(--cw) * .105); block-size:calc(var(--cw) * .105);
+  border-radius:50%; display:inline-block; flex:0 0 auto;
+  background-color:#F6F1E6; background-repeat:no-repeat;
+  box-shadow:0 0 0 0.11rem var(--paper), 0 1px 3px rgba(0,0,0,.7);
+}
+.rchip.is-missing{ filter:grayscale(1) brightness(.55); box-shadow:0 0 0 0.11rem var(--raimon); }
+
+/* 出目 */
+.dice-need{
+  font-family:var(--f-num); font-size:calc(var(--cw) * .05);
+  background:var(--ink); color:var(--bolt);
+  padding:.15em .5em; border-radius:var(--r-btn); white-space:nowrap;
+}
+.tag{
+  font-family:var(--f-disp); font-size:calc(var(--cw) * .05);
+  padding:.12em .5em; border-radius:var(--r-btn); white-space:nowrap;
+}
+.tag--pierce{ background:var(--raimon); color:#fff; }
 
 /* 種別アイコン */
 .ic{
-  inline-size:1.05em; block-size:1.05em; flex:0 0 auto;
-  border-radius:2px; display:inline-grid; place-items:center;
-  font-size:.78em; font-weight:900; color:#fff;
-  font-family:var(--f-ui);
+  inline-size:1.15em; block-size:1.15em; flex:0 0 auto;
+  border-radius:0.13rem; display:inline-grid; place-items:center;
+  font-size:calc(var(--cw,14rem) * .05); font-weight:900; color:#fff;
+  font-family:var(--f-ui); line-height:1;
 }
 .ic--シュート{ background:var(--t-shoot); }
 .ic--ドリブル{ background:var(--t-dribble); }
 .ic--ディフェンス{ background:var(--t-defense); }
 .ic--キャッチ{ background:var(--t-catch); color:#3A2A00; }
 
-/* ポジションの角バッジ */
-.card__pos{
-  position:absolute; inset-block-start:calc(var(--w)*.20); inset-inline-end:0;
-  font-family:var(--f-num); font-size:calc(var(--w)*.105);
-  background:var(--ink); color:var(--paper);
-  padding:.15em .4em;
-}
-.card__pos[data-pos="GK"]{ background:var(--bolt); color:#3A2A00; }
+/* ================================================================
+ * 状態
+ * ============================================================== */
 
-/* 必殺カードの左端の色帯 */
-.card--tech::before{
-  content:""; position:absolute; inset-block:0; inset-inline-start:0; inline-size:4px; z-index:2;
-}
-.card--シュート::before{ background:var(--t-shoot); }
-.card--ドリブル::before{ background:var(--t-dribble); }
-.card--ディフェンス::before{ background:var(--t-defense); }
-.card--キャッチ::before{ background:var(--t-catch); }
-
-/* 出目 */
-.dice-need{
-  font-family:var(--f-num); font-size:calc(var(--w)*.11);
-  background:var(--ink); color:var(--bolt);
-  display:inline-block; padding:.1em .45em; margin-top:.2em;
-  letter-spacing:.04em;
-}
-.pierce{
-  display:inline-block; font-weight:900; font-size:calc(var(--w)*.1);
-  background:var(--raimon); color:#fff; padding:.1em .4em; margin-block-end:.15em;
-}
-
-/* コイン・ボール */
-.card--coin,.card--ball{ display:grid; place-items:center; grid-template-rows:1fr; }
-.card--coin{
-  background:radial-gradient(circle at 38% 30%, #FFE58A, var(--bolt) 42%, var(--bolt-deep) 78%);
-}
-.card--coin .glyph{ font-size:calc(var(--w)*.5); color:#7A5500; line-height:1; }
-.card--coin .cap{ font-family:var(--f-disp); font-size:calc(var(--w)*.11); color:#5D4100; }
-.card--ball{ background:radial-gradient(circle at 40% 32%, #fff, #C8CFC4 70%, #8B948A); }
-.card--ball .glyph{ font-size:calc(var(--w)*.44); line-height:1; }
-.card--ball .cap{ font-family:var(--f-disp); font-size:calc(var(--w)*.11); color:#2A2E28; }
-
-/* 裏面（相手の伏せ札） */
-.card--back{
-  background:
-    repeating-linear-gradient(135deg, rgba(0,0,0,.14) 0 4px, transparent 4px 8px),
-    linear-gradient(160deg, #2B4A6E, #16283C);
-  display:grid; place-items:center;
-}
-.card--back .glyph{ font-size:calc(var(--w)*.42); color:var(--bolt); opacity:.85; }
-
-/* ---------------- 状態 ---------------- */
-
-/* 今すぐ撃てる／拾える：黄の縁がつき、浮き上がり、何ができるかが札に出る */
-.card.is-live{ translate:0 -9px; }
-.card.is-live::after{
-  box-shadow:inset 0 0 0 2px var(--bolt), 0 0 16px rgba(255,206,31,.65);
+/* 今すぐ撃てる／拾える */
+.tcard.is-live, .tile.is-live{ translate:0 -0.55rem; }
+.tcard.is-live::after, .tile.is-live::after{
+  box-shadow:inset 0 0 0 0.15rem var(--bolt), 0 0 1rem rgba(255,206,31,.6);
 }
 .card__hot{
-  position:absolute; inset-block-end:0; inset-inline:0; z-index:4;
-  font-family:var(--f-disp); font-size:calc(var(--w)*.115); text-align:center;
-  background:var(--bolt); color:#3A2A00; padding:.12em 0;
-  letter-spacing:.08em;
+  position:absolute; inset-block-end:0; inset-inline:0; z-index:5;
+  font-family:var(--f-disp); text-align:center;
+  background:var(--bolt); color:#3A2A00;
+  font-size:0.7rem; padding:.1em 0; letter-spacing:.08em;
 }
+.tcard .card__hot{ inset-inline-start:auto; inline-size:auto; padding:.1em .8em; border-start-start-radius:var(--r-card); }
 
 /* 相手の番：自分の札は沈む */
-.card.is-dim{
-  filter:saturate(.3) brightness(.6);
-  translate:0 6px;
-}
-.card.is-dim::after{ box-shadow:inset 0 0 0 1px rgba(0,0,0,.45); }
+.tcard.is-dim, .tile.is-dim{ filter:saturate(.3) brightness(.58); translate:0 0.35rem; }
 
 /* 選択中 */
-.card.is-sel{ translate:0 -18px; scale:1.06; z-index:6; }
-.card.is-sel::after{ box-shadow:inset 0 0 0 3px var(--raimon), 0 0 24px rgba(232,84,28,.6); }
-
-/* 手札とベンチのカードは、横スワイプはブラウザに任せて縦ドラッグだけ拾う。
-   こうしないと手札を横にスクロールできなくなる。 */
-.hand .card, .me .card{ touch-action:pan-x; }
-.field .card{ touch-action:pan-y; }
-
-/* キャプテン */
-.card.is-captain::after{ box-shadow:inset 0 0 0 2px var(--raimon); }
-.card__cap{
-  position:absolute; inset-block-start:0; inset-inline-start:0; z-index:3;
-  font-family:var(--f-disp); font-size:calc(var(--w)*.1);
-  background:var(--raimon); color:#fff; padding:.12em .5em;
+.tcard.is-sel, .tile.is-sel{ translate:0 -1.1rem; scale:1.04; z-index:30; }
+.tcard.is-sel::after, .tile.is-sel::after{
+  box-shadow:inset 0 0 0 0.2rem var(--raimon), 0 0 1.6rem rgba(232,84,28,.65);
 }
 
 /* 掴んでいる最中 */
-.card.is-drag{
+.is-drag{
   position:fixed; z-index:90; pointer-events:none;
-  transition:none; scale:1.1; rotate:-4deg;
-  box-shadow:0 18px 34px rgba(0,0,0,.6);
+  transition:none; scale:1.06; rotate:-3deg;
+  box-shadow:0 1.1rem 2rem rgba(0,0,0,.6);
 }
 
-/* ちいさい表示（相手の場・場のカード） */
-.card--mini{ --w:calc(var(--cw) * .72); }
-.card--nano{ --w:calc(var(--cw) * .56); }
-.card--nano .card__foot{ display:none; }
-.card--nano{ grid-template-rows:auto 1fr; }
+/* ================================================================
+ * コインの山
+ * ============================================================== */
+.coinstack{
+  inline-size:5.2rem; position:relative; text-align:center; flex:0 0 auto;
+}
+.coinstack__coin{
+  inline-size:3.6rem; block-size:3.6rem; margin-inline:auto;
+  border-radius:50%; display:grid; place-items:center;
+  font-size:1.6rem; color:#7A5500;
+  background:radial-gradient(circle at 38% 30%, #FFE58A, var(--bolt) 44%, var(--bolt-deep) 80%);
+  box-shadow:0 0.2rem 0 #8A6300, 0 0.15rem 0 0.12rem #C79200 inset, 0 0.4rem 0.8rem rgba(0,0,0,.5);
+}
+.coinstack__n{
+  font-family:var(--f-num); font-size:1.15rem; color:var(--bolt); line-height:1.3;
+}
+.coinstack__cap{ font-size:0.6rem; opacity:.65; }
+
+/* ================================================================
+ * 場の山
+ * ============================================================== */
+.pile{ position:relative; flex:0 0 auto; }
+.pile__deck{ position:relative; }
+.pile__deck .tcard{ --cw:12.4rem; cursor:pointer; }
+.pile__deck .tile{ --tw:6.6rem; }
+.pile__under{
+  position:absolute; inset:0; z-index:-1;
+  background:var(--paper-2); border-radius:var(--r-card);
+  box-shadow:0 1px 0 rgba(0,0,0,.5);
+}
+.pile__under--1{ translate:0.28rem 0.28rem; }
+.pile__under--2{ translate:0.56rem 0.56rem; background:#C9BC9E; }
+.pile__empty{
+  inline-size:12.4rem; block-size:6.6rem;
+  border:0.13rem dashed rgba(239,243,233,.22); border-radius:var(--r-card);
+  display:grid; place-items:center; font-size:.72rem; opacity:.4;
+}
+.pile__bar{
+  display:flex; align-items:baseline; gap:.4rem; justify-content:center;
+  margin-block-start:.3rem;
+}
+.pile__label{ font-family:var(--f-disp); font-size:.72rem; opacity:.85; }
+.pile__n{ font-family:var(--f-num); font-size:.95rem; color:var(--bolt); }
+.pile.is-empty{ opacity:.45; }
+.pile.is-live .pile__deck{ translate:0 -0.4rem; }
+.pile.is-live .pile__deck::after{
+  content:"拾える"; position:absolute; inset-block-end:-0.2rem; inset-inline-start:50%;
+  translate:-50% 0; z-index:6;
+  font-family:var(--f-disp); font-size:.68rem; letter-spacing:.08em;
+  background:var(--bolt); color:#3A2A00; padding:.1em .8em; border-radius:var(--r-chip);
+}
+.pile.is-live .pile__top::after{ box-shadow:inset 0 0 0 0.15rem var(--bolt), 0 0 1rem rgba(255,206,31,.6); }
+
+/* 山札・捨て札 */
+.counter{
+  inline-size:4.6rem; text-align:center; flex:0 0 auto;
+  padding:.5rem .2rem;
+  background:rgba(6,12,10,.5); border:1px solid rgba(255,255,255,.14);
+  border-radius:var(--r-card);
+}
+.counter__n{ font-family:var(--f-num); font-size:1.25rem; color:var(--line); line-height:1.1; }
+.counter__label{ font-size:.62rem; opacity:.62; margin-block-start:.15rem; }
+.counter--deck .counter__n{ color:var(--bolt); }
+
+/* ================================================================
+ * 拡大表示
+ * ============================================================== */
+.big{ inline-size:min(46rem,92vw); background:var(--night-2); border-radius:var(--r-card); overflow:hidden; }
+.big--tech .big__art{
+  inline-size:100%; aspect-ratio:1.88;
+  background-size:cover; background-position:center; background-color:var(--ink);
+}
+.big__body{ padding:1rem 1.2rem 1.2rem; --cw:20rem; }
+.big__head{ display:flex; align-items:center; gap:.5rem; margin-block-end:.7rem; }
+.big__name{ font-family:var(--f-disp); font-size:1.5rem; color:var(--bolt); }
+.big__line{ display:flex; gap:.8rem; align-items:baseline; padding-block:.35rem; border-block-start:1px solid rgba(255,255,255,.1); }
+.big__cap{ inline-size:6.5rem; flex:0 0 auto; font-size:.75rem; opacity:.6; }
+.big__who,.big__techs{ display:flex; flex-wrap:wrap; gap:.5rem 1rem; font-size:.85rem; }
+.big__whoone,.big__techone{ display:flex; align-items:center; gap:.35rem; }
+.big__pips{ display:flex; gap:.3rem; }
+.big__pips .pip{
+  inline-size:1.7rem; block-size:1.7rem; border-radius:var(--r-btn);
+  display:grid; place-items:center; font-family:var(--f-num); font-size:.8rem;
+  background:rgba(255,255,255,.07); color:rgba(255,255,255,.3); border:1px solid rgba(255,255,255,.12);
+}
+.big__pips .pip.on{ background:rgba(255,206,31,.2); color:var(--bolt); border-color:var(--bolt); }
+.big__eff{ font-size:.85rem; line-height:1.6; }
+.big--char{ display:grid; grid-template-columns:auto 1fr; gap:1.2rem; padding:1.2rem; align-items:start; }
+.big--char .big__tile{ --tw:11rem; cursor:default; }
+.big--char .big__body{ padding:0; }

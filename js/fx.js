@@ -46,18 +46,20 @@
     'ディフェンス': 'DEFENSE', 'キャッチ': 'CATCH'
   };
 
-  /* ---------------- 必殺技カットイン ---------------- */
+  /* ---------------- 必殺技カットイン ----------------
+   * 必殺技の絵は 1919x1020（ほぼ16:9）。縮めて貼らず、画面いっぱいに敷いて主役にする。 */
   async function cutin(tech, byText, tagText, ms) {
     if (speed === 0) return;
     busy();
     var wrap = R.el('div', 'cutin');
     wrap.style.setProperty('--band', TYPE_COLOR[tech.type] || 'var(--t-shoot)');
 
-    wrap.appendChild(R.el('div', 'cutin__band'));
-
     var art = R.el('div', 'cutin__art');
     art.style.backgroundImage = 'url("' + R.url(tech.img) + '")';
     wrap.appendChild(art);
+    wrap.appendChild(R.el('div', 'cutin__veil'));
+    wrap.appendChild(R.el('div', 'cutin__rule cutin__rule--top'));
+    wrap.appendChild(R.el('div', 'cutin__rule cutin__rule--bot'));
 
     var tx = R.el('div', 'cutin__text');
     tx.appendChild(R.el('div', 'cutin__kind', TYPE_WORD[tech.type] || ''));

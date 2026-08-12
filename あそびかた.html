@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テッペンとリーヨ！ ── あそびかた</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Reggae+One&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grass:#123D26; --line:#EFF3E9; --bolt:#FFCE1F; --raimon:#E8541C;
+  --night:#0A1119; --paper:#F3EDDF; --ink:#171310; --ink-soft:#5A4F3C;
+  --f-disp:'Reggae One','Hiragino Maru Gothic ProN',sans-serif;
+  --f-ui:'Zen Kaku Gothic New','Hiragino Kaku Gothic ProN','Yu Gothic UI',sans-serif;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+body{
+  margin:0; font-family:var(--f-ui); color:var(--ink);
+  background:var(--night);
+  line-height:1.85;
+}
+/* 紙の上に印刷したように見せる。ベタ塗りの白紙にはしない */
+.sheet{
+  max-inline-size:46rem; margin:0 auto; background:var(--paper);
+  padding:3.5rem 3rem 4rem;
+  position:relative;
+  box-shadow:0 0 4rem rgba(0,0,0,.6);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(90,79,60,.035) 0 1px, transparent 1px 4px);
+}
+.sheet::before{
+  content:""; position:absolute; inset-block-start:0; inset-inline:0; block-size:.5rem;
+  background:linear-gradient(90deg,var(--raimon) 0 33%,var(--bolt) 33% 66%,var(--grass) 66%);
+}
+h1{
+  font-family:var(--f-disp); font-weight:400; font-size:2.6rem; line-height:1.15;
+  margin:0 0 .2em; color:var(--grass);
+}
+h1 small{ display:block; font-size:.34em; letter-spacing:.3em; color:var(--ink-soft); font-family:var(--f-ui); font-weight:700; }
+.lead{ font-size:1.05rem; margin:0 0 2.5rem; padding-block-end:1.5rem; border-block-end:2px solid var(--grass); }
+h2{
+  font-family:var(--f-disp); font-weight:400; font-size:1.35rem;
+  margin:2.6rem 0 .8rem; color:var(--grass);
+  display:flex; align-items:center; gap:.6rem;
+}
+h2 i{
+  font-style:normal; inline-size:1.9rem; block-size:1.9rem; flex:0 0 auto;
+  background:var(--grass); color:var(--paper); border-radius:50%;
+  display:grid; place-items:center; font-size:.9rem; font-family:var(--f-ui); font-weight:900;
+}
+h3{ font-size:1rem; margin:1.6rem 0 .4rem; color:var(--raimon); }
+p,li{ font-size:.95rem; }
+ul,ol{ padding-inline-start:1.4rem; margin:.5rem 0 1rem; }
+li{ margin-block-end:.35rem; }
+strong{ background:linear-gradient(transparent 62%, rgba(255,206,31,.55) 62%); font-weight:700; }
+table{ inline-size:100%; border-collapse:collapse; margin:.8rem 0 1.4rem; font-size:.9rem; }
+th,td{ text-align:start; padding:.5em .7em; border-block-end:1px solid rgba(90,79,60,.28); vertical-align:top; }
+thead th{ background:var(--grass); color:var(--paper); font-weight:700; border:0; }
+.note{
+  border-inline-start:.35rem solid var(--bolt);
+  background:rgba(255,206,31,.14);
+  padding:.9rem 1.1rem; margin:1.2rem 0; font-size:.9rem;
+}
+.flow{ display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; margin:1rem 0 1.6rem; font-size:.95rem; }
+.flow b{
+  background:var(--ink); color:var(--paper); padding:.35em 1em; border-radius:2px;
+  font-family:var(--f-disp); font-weight:400;
+}
+.flow span{ color:var(--ink-soft); }
+.abc{ border:2px solid var(--ink); margin:1rem 0 1.6rem; }
+.abc > div{ padding:.9rem 1.1rem; border-block-end:1px solid rgba(23,19,16,.2); }
+.abc > div:last-child{ border-block-end:0; }
+.abc h4{
+  margin:0 0 .3rem; font-size:1rem; font-family:var(--f-disp); font-weight:400;
+  display:flex; align-items:center; gap:.5rem;
+}
+.abc h4 em{
+  font-style:normal; background:var(--raimon); color:#fff;
+  inline-size:1.6rem; block-size:1.6rem; border-radius:2px;
+  display:grid; place-items:center; font-size:.85rem;
+}
+.abc p{ margin:0; font-size:.9rem; }
+footer{ margin-block-start:3rem; padding-block-start:1.2rem; border-block-start:1px solid rgba(90,79,60,.3); font-size:.8rem; color:var(--ink-soft); }
+a{ color:var(--grass); }
+@media print{
+  body{ background:#fff; }
+  .sheet{ box-shadow:none; max-inline-size:none; padding:1.5cm; }
+  h2{ break-after:avoid; }
+  table,.abc,.note{ break-inside:avoid; }
+}
+</style>
+</head>
+<body>
+<article class="sheet">
+
+<h1><small>イナズマイレブン カードゲーム</small>テッペンとリーヨ！</h1>
+
+<p class="lead">
+カードとサイコロでサッカーをするゲームです。<br>
+必殺技を撃ち合ってボールを奪い合い、<strong>先に3点決めた人の勝ち</strong>。2〜4人で遊べます。
+</p>
+
+<h2><i>1</i>用意するもの</h2>
+
+<table>
+  <thead><tr><th>もの</th><th>はたらき</th></tr></thead>
+  <tbody>
+    <tr><td>キャラクターカード</td><td>選手。必殺技を撃つのに必要</td></tr>
+    <tr><td>必殺カード</td><td>シュート／ドリブル／ディフェンス／キャッチの4種類</td></tr>
+    <tr><td>イナズマコインカード</td><td>スカウトの支払いに使う</td></tr>
+    <tr><td>ボールカード（1枚）</td><td>今ボールを持っている人のしるし</td></tr>
+    <tr><td>6面サイコロ（1個）</td><td>キャッチとドリブルのときに振る</td></tr>
+  </tbody>
+</table>
+
+<h2><i>2</i>準備</h2>
+
+<ol>
+  <li><strong>円堂守カード4種類</strong>を抜き出して、表向きに並べます。</li>
+  <li>ジャンケンをして、勝った順に1枚ずつ好きな円堂を選びます。選んだ円堂が<strong>あなたのキャプテン</strong>です。自分の前に表向きで置きます。
+    <ul>
+      <li>選ばれなかった円堂は箱に戻します（山札に入れません）</li>
+      <li>ジャンケンで勝った順が、そのまま手番の順になります</li>
+    </ul>
+  </li>
+  <li>残りのカードをよく混ぜて<strong>山札</strong>を作り、1人ずつ手札を配ります。</li>
+  <li>ボールカードは山札に1枚だけ混ざっています。<strong>引き当てた人からゲームスタート。</strong></li>
+  <li>山札のとなりに、<strong>場</strong>と<strong>捨て札</strong>を置くすき間を空けておきます。</li>
+</ol>
+
+<h3>手札の見せかた</h3>
+
+<table>
+  <thead><tr><th>カード</th><th>どうする</th></tr></thead>
+  <tbody>
+    <tr><td>キャラクターカード</td><td><strong>表向き</strong>にして自分の前に並べる</td></tr>
+    <tr><td>ボールカード</td><td><strong>表向き</strong>にして置く</td></tr>
+    <tr><td>必殺カード</td><td>伏せて持つ（自分だけが見る）</td></tr>
+    <tr><td>イナズマコインカード</td><td>伏せて持つ</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+だれがどの選手を持っているかは、全員に見えています。<br>
+でも<strong>その選手の必殺カードを持っているかどうかは見えません。</strong>
+「あいつは円堂を持っている＝キャッチできるかも」と読み合うのが、このゲームの中心です。
+</div>
+
+<h3>キャプテン（円堂守）</h3>
+
+<ul>
+  <li>キャプテンは<strong>絶対に奪われません</strong></li>
+  <li>キャプテンは<strong>場に出せません</strong></li>
+  <li>一度決めたら<strong>ゲーム中は変えられません</strong></li>
+</ul>
+
+<p>円堂守は4種類あり、それぞれ<strong>キーパー技1つ</strong>と<strong>円堂が加わるシュート技1つ</strong>を持っています。その2つは、その円堂を持っている人だけが使えます。</p>
+
+<table>
+  <thead><tr><th></th><th>キーパー技</th><th>シュート技</th><th>シュートに必要な選手</th></tr></thead>
+  <tbody>
+    <tr><td>円堂①</td><td>ゴッドハンド</td><td>イナズマブレイク</td><td>鬼道（雷門）・豪炎寺</td></tr>
+    <tr><td>円堂②</td><td>マジン・ザ・ハンド</td><td>イナズマ１号落とし</td><td>豪炎寺・壁山</td></tr>
+    <tr><td>円堂③</td><td>熱血パンチ</td><td>ザ・フェニックス</td><td>一之瀬・土門</td></tr>
+    <tr><td>円堂④</td><td>爆裂パンチ</td><td>トライペガサス</td><td>一之瀬・土門</td></tr>
+  </tbody>
+</table>
+
+<h2><i>3</i>手番でできること</h2>
+
+<p>自分の番になったら、<strong>A・B・C のどれか1つ</strong>をします。</p>
+
+<div class="abc">
+  <div>
+    <h4><em>A</em>カードを出して引く</h4>
+    <p>手札から1枚を<strong>場</strong>に出し、山札から1枚引きます。キャラクターカードでも必殺カードでも構いません（キャプテンは出せません）。</p>
+  </div>
+  <div>
+    <h4><em>B</em>ワザを撃つ</h4>
+    <p>手札から<strong>キャラクターカード</strong>と、そのキャラが使える<strong>必殺カード</strong>を出して撃ちます。2人ワザ・3人ワザは、必殺カードに描かれている選手を<strong>全員持っていること</strong>が条件です。</p>
+  </div>
+  <div>
+    <h4><em>C</em>スカウトする</h4>
+    <p><strong>コイン1枚</strong>で、場のカードを1枚もらう。<br>
+       <strong>コイン2枚</strong>で、ほかの人のキャラクターカードを1枚もらう（キャプテンは選べません）。<br>
+       払ったコインは捨て札に置きます。二度と戻ってきません。</p>
+  </div>
+</div>
+
+<h2><i>4</i>ワザの解決</h2>
+
+<div class="flow">
+  <b>シュート</b><span>←</span><b>キャッチ</b><span>で防ぐ</span>
+</div>
+<div class="flow">
+  <b>ディフェンス</b><span>←</span><b>ドリブル</b><span>で振り切る</span>
+</div>
+
+<p><strong>仕掛ける側はサイコロを振りません。</strong> 相手がリアクションしなければ、そのまま成功します。サイコロを振るのは受けた側だけです。</p>
+<p>リアクションできるのは<strong>指名された本人だけ</strong>です。ほかの人が横から防ぐことはできません。</p>
+
+<h3>シュート（ボールを持っている人だけ）</h3>
+
+<ol>
+  <li>撃つ相手を1人指名します。</li>
+  <li>指名された人は、<strong>ゴールキーパーを持っていればキャッチを試せます</strong>。1人も持っていなければ、そのまま得点です。</li>
+  <li>止められなければ<strong>1点</strong>。カードに書かれた効果を処理します。</li>
+</ol>
+
+<h3>キャッチ</h3>
+
+<p>キーパーを1人選んで、サイコロを1回振ります。やり方は2つあります。</p>
+
+<table>
+  <thead><tr><th>やり方</th><th>成功する出目</th></tr></thead>
+  <tbody>
+    <tr><td><strong>素手キャッチ</strong>（キーパーのカードだけ）　円堂守</td><td>6 だけ</td></tr>
+    <tr><td><strong>素手キャッチ</strong>　げんおう・ポセイドン</td><td>5 か 6</td></tr>
+    <tr><td><strong>必殺キャッチ</strong>（キーパー＋そのキーパー技）</td><td>カードに書かれた出目</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+シュートカードに<strong>【貫通】</strong>と書かれているときは、<strong>素手キャッチが効きません。</strong>
+止めるには、キーパー技の必殺カードを使ったキャッチが必要です。
+</div>
+
+<p><strong>キャッチに成功したら</strong></p>
+<ul>
+  <li>ボールはキャッチした人へ</li>
+  <li><strong>キャッチした人が、そのまま自分の手番を始めます</strong>（あいだの人は飛ばされます）</li>
+</ul>
+
+<h3>ディフェンス（ボールを持っていない人が仕掛ける）</h3>
+
+<p>自分の番に、ボールを持っている人へ仕掛けます。相手が<strong>ドリブル</strong>で反応するか選びます。</p>
+<ul>
+  <li>ドリブルを使わない、または持っていない → <strong>ディフェンス成功。ボールを奪います</strong></li>
+  <li>ドリブルを使う → サイコロを振り、カードに書かれた出目が出れば<strong>振り切り成功</strong></li>
+</ul>
+<p>振り切りに成功した人は、<strong>そのまま自分の手番を始めます</strong>。</p>
+
+<h2><i>5</i>使ったカードの行き先</h2>
+
+<p>一度使った必殺カードは、手札には戻りません。行き先は2つです。</p>
+
+<table>
+  <thead><tr><th>どうなったか</th><th>行き先</th></tr></thead>
+  <tbody>
+    <tr><td>相手がリアクションしなかった</td><td><strong>場</strong></td></tr>
+    <tr><td>撃ち合いに<strong>勝った</strong></td><td><strong>場</strong></td></tr>
+    <tr><td>撃ち合いに<strong>負けた</strong></td><td><strong>山札</strong>（よく混ぜて戻す）</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+場に置かれたカードは、<strong>コイン1枚で拾い直せます。</strong><br>
+でも<strong>山札に戻ったカードは、もう狙って取り戻せません。</strong>
+撃ち合いに負けることが、このゲームでいちばん痛い出来事です。
+</div>
+
+<p><strong>キャラクターカードは失われません。</strong> ワザの結果がどうであれ、自分の手元に戻ります。エースは何度でも起用できます（ただし引き抜きスカウトで奪われることはあります）。</p>
+
+<h2><i>6</i>得点とキックオフ</h2>
+
+<ul>
+  <li>得点は<strong>すべて1点</strong>です</li>
+  <li>ボールは<strong>失点した人</strong>に渡ります</li>
+  <li>失点した人は<strong>山札から1枚引きます</strong></li>
+  <li><strong>失点した人から次の手番が始まります</strong></li>
+</ul>
+
+<div class="note">
+<strong>失点はまるごと損ではありません。</strong><br>
+ボールが手に入り、カードが1枚増え、次の手番が回ってきます。
+守る手段を持っていなくても、詰むことはありません。
+</div>
+
+<h2><i>7</i>勝敗</h2>
+
+<p><strong>最初に3点決めた人の勝ちです。</strong></p>
+
+<p>山札がなくなったら、その時点で試合終了（タイムアップ）。だれも3点に届いていなければ、次の順で決めます。</p>
+
+<ol>
+  <li>得点がいちばん多い人の勝ち</li>
+  <li>同点なら、そのなかで<strong>先に得点した人</strong>の勝ち</li>
+  <li>全員0点なら引き分け</li>
+</ol>
+
+<p>そのため、<strong>だれが何点目をいつ決めたか、順番が分かるように記録しておいてください。</strong> 得点するたびにコインを一列に並べていくと分かりやすくなります。</p>
+
+<h2><i>8</i>場について</h2>
+
+<ul>
+  <li>場は<strong>全員共通</strong>のカード置き場です。すべて表向きで、だれでも中身を見られます</li>
+  <li>置ける枚数に上限はありません</li>
+  <li>コイン1枚を払えば、だれでも1枚拾えます</li>
+</ul>
+
+<p>大きくなってきたら、<strong>シュート／ドリブル／ディフェンス／キャッチ／キャラクターの種類ごとに分けて重ねる</strong>と探しやすくなります。</p>
+
+<div class="note">
+技を撃つたびに、そのカードは手札から離れて場に落ちます。<br>
+もう一度撃ちたければ、コインを払って拾い直すしかありません。<br>
+<strong>コインが「何回技を撃てるか」を決めています。</strong>
+</div>
+
+<footer>
+テッペンとリーヨ！ ／ あそびかた<br>
+くわしい取り決めは開発用のルールブックにあります。
+</footer>
+
+</article>
+</body>
+</html>

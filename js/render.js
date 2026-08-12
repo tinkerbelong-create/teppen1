@@ -1,5 +1,8 @@
-/* テッペンとリーヨ！ ── カードの絵づくり
- * 画像は base64 で埋め込まない。リポジトリ内のファイルをそのまま参照する。
+/* テッペンとリーヨ！ ── カードの見た目を組み立てる
+ *
+ * 画像を主役にする。
+ *   キャラクター … 256x256 の正方形なので、正方形の顔タイルのまま切らずに見せる
+ *   必殺技       … 1919x1020 の横長なので、横長のカードにして絵を全面に敷く
  */
 (function (global) {
   'use strict';
@@ -7,7 +10,17 @@
   var NS = global.TEPPEN;
   var DATA = NS.DATA;
 
-  function url(path) { return encodeURI(path); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function bg(node, path) {
+    node.style.backgroundImage = 'url("' + NS.asset(path) + '")';
+    return node;
+  }
 
   /* base → そのキャラが関わるワザ */
   var INV = {};
@@ -28,13 +41,6 @@
     return { main: m, sub: s };
   }
 
-  function el(tag, cls, text) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
-  }
-
   function icon(type) {
     var i = el('i', 'ic ic--' + type, type.charAt(0));
     i.title = type;
@@ -49,112 +55,244 @@
     return dice.join('・');
   }
 
-  /* ---------------- キャラクターカード ---------------- */
-  function charCard(c, detail) {
-    var e = el('div', 'card card--char');
-    e.dataset.uid = c.uid;
+  /* ================================================================
+   * 顔タイル（キャラクター）
+   * ============================================================== */
+  function faceTile(c, opt) {
+    opt = opt || {};
+    var e = el('div', 'tile' + (opt.small ? ' tile--sm' : ''));
+    e.dataset.uid = c.uid != null ? c.uid : '';
     e.dataset.kind = 'char';
 
-    e.appendChild(el('div', 'card__name', c.name));
+    var face = el('div', 'tile__face');
+    bg(face, c.img);
+    var f = NS.faceOf(c);
+    face.style.backgroundSize = f.zoom + '%';
+    face.style.backgroundPosition = f.x + '% ' + f.y + '%';
+    e.appendChild(face);
 
-    var art = el('div', 'card__art');
-    art.style.backgroundImage = 'url("' + url(c.img) + '")';
-    e.appendChild(art);
-
-    var pos = el('div', 'card__pos', c.pos);
+    var pos = el('div', 'tile__pos', c.pos);
     pos.dataset.pos = c.pos;
     e.appendChild(pos);
 
-    var foot = el('div', 'card__foot');
-    var tk = techsOf(c);
-    var lines = tk.main.concat(tk.sub);
-    var limit = detail ? lines.length : 2;
-    lines.slice(0, limit).forEach(function (t) {
-      var ln = el('div', 'tline');
-      ln.appendChild(icon(t.type));
-      var b = el('b', null, t.name);
-      ln.appendChild(b);
-      var others = t.req.filter(function (r) { return r !== c.base; });
-      if (t.main !== c.base) others = [t.main].concat(others).filter(function (r) { return r !== c.base; });
-      if (others.length) ln.appendChild(el('span', 'req', '（' + others.join('・') + '）'));
-      foot.appendChild(ln);
-    });
-    if (!detail && lines.length > limit) {
-      foot.appendChild(el('div', 'tline', '＋' + (lines.length - limit)));
-    }
-    if (!lines.length) foot.appendChild(el('div', 'tline', 'ワザなし'));
-    e.appendChild(foot);
+    e.appendChild(el('div', 'tile__name', c.name));
 
     if (c.cap) {
       e.classList.add('is-captain');
-      e.appendChild(el('div', 'card__cap', 'キャプテン'));
+      e.appendChild(el('div', 'tile__cap', 'キャプテン'));
     }
     return e;
   }
 
-  /* ---------------- 必殺カード ---------------- */
-  function techCard(c, detail) {
-    var e = el('div', 'card card--tech card--' + c.type);
-    e.dataset.uid = c.uid;
+  /* 必要な選手を示す、小さい丸い顔 */
+  function reqChip(base, owned) {
+    var src = DATA.charByBase[base];
+    var e = el('span', 'rchip' + (owned === false ? ' is-missing' : ''));
+    if (src) {
+      bg(e, src.img);
+      var f = NS.faceOf(src);
+      e.style.backgroundSize = (f.zoom + 15) + '%';
+      e.style.backgroundPosition = f.x + '% ' + f.y + '%';
+    }
+    e.title = base;
+    return e;
+  }
+
+  /* ================================================================
+   * 必殺カード（横長。絵を全面に敷いて、文字はその上に薄い帯で重ねる）
+   * ============================================================== */
+  function techCard(t, ctx) {
+    ctx = ctx || {};
+    var e = el('div', 'tcard tcard--' + t.type);
+    e.dataset.uid = t.uid != null ? t.uid : '';
     e.dataset.kind = 'tech';
 
-    var nm = el('div', 'card__name');
-    nm.appendChild(icon(c.type));
-    nm.appendChild(el('span', null, c.name));
-    e.appendChild(nm);
-
-    var art = el('div', 'card__art');
-    art.style.backgroundImage = 'url("' + url(c.img) + '")';
+    var art = el('div', 'tcard__art');
+    bg(art, t.img);
     e.appendChild(art);
 
-    var foot = el('div', 'card__foot');
-    if (c.eff.pierce) foot.appendChild(el('span', 'pierce', '貫通'));
-    var who = [c.main].concat(c.req).join(' ＋ ');
-    foot.appendChild(el('div', 'tline', who));
-    if (c.dice) {
-      var d = el('div', 'dice-need', '出目 ' + diceLabel(c.dice));
-      foot.appendChild(d);
-    }
-    if (detail && c.efftxt) foot.appendChild(el('div', 'tline', c.efftxt));
-    else if (c.efftxt && !c.eff.pierce) foot.appendChild(el('div', 'tline', c.efftxt));
+    var top = el('div', 'tcard__top');
+    top.appendChild(icon(t.type));
+    top.appendChild(el('span', 'tcard__name', t.name));
+    if (t.eff.pierce) top.appendChild(el('span', 'tag tag--pierce', '貫通'));
+    e.appendChild(top);
+
+    var foot = el('div', 'tcard__foot');
+
+    var who = el('div', 'tcard__who');
+    var owned = ctx.owned || null;
+    var mains = [t.main].concat(t.req);
+    mains.forEach(function (b, i) {
+      if (i) foot.dataset.combo = '1';
+      who.appendChild(reqChip(b, owned ? !!owned[b] : undefined));
+    });
+    foot.appendChild(who);
+
+    var info = el('div', 'tcard__info');
+    if (t.dice) info.appendChild(el('span', 'dice-need', diceLabel(t.dice) + ' で成功'));
+    if (t.efftxt) info.appendChild(el('span', 'tcard__eff', t.efftxt));
+    foot.appendChild(info);
+
     e.appendChild(foot);
     return e;
   }
 
-  function coinCard(c) {
-    var e = el('div', 'card card--coin');
-    e.dataset.uid = c.uid; e.dataset.kind = 'coin';
-    e.appendChild(el('div', 'glyph', '⚡'));
-    e.appendChild(el('div', 'cap', 'イナズマコイン'));
+  /* ================================================================
+   * コインとボール（1枚ずつ並べず、まとめて数で見せる）
+   * ============================================================== */
+  function coinStack(n) {
+    var e = el('div', 'coinstack');
+    e.dataset.kind = 'coin';
+    e.appendChild(el('div', 'coinstack__coin', '⚡'));
+    e.appendChild(el('div', 'coinstack__n', String(n)));
+    e.appendChild(el('div', 'coinstack__cap', 'イナズマコイン'));
     return e;
   }
 
-  function ballCard(c) {
-    var e = el('div', 'card card--ball');
-    e.dataset.uid = c.uid; e.dataset.kind = 'ball';
-    e.appendChild(el('div', 'glyph', '⚽'));
-    e.appendChild(el('div', 'cap', 'ボール'));
+  /* ================================================================
+   * 場の山（種類ごとに重ねる）
+   * ルールブック9章「場が大きくなってきたら、種類ごとに分けて並べる」を画面でもやる。
+   * ============================================================== */
+  function pile(kindLabel, cards, ctx) {
+    var e = el('div', 'pile');
+    e.dataset.pile = kindLabel;
+
+    var deck = el('div', 'pile__deck');
+    var top = cards[0];
+    if (top) {
+      if (top.kind === 'char') {
+        var t = faceTile(top, { small: true });
+        t.classList.add('pile__top', 'pile__top--char');
+        deck.appendChild(t);
+      } else {
+        var c = techCard(top, ctx);
+        c.classList.add('pile__top');
+        deck.appendChild(c);
+      }
+      /* 下に重なっている感じを2枚ぶんだけ出す */
+      if (cards.length > 1) deck.appendChild(el('div', 'pile__under pile__under--1'));
+      if (cards.length > 2) deck.appendChild(el('div', 'pile__under pile__under--2'));
+    } else {
+      deck.appendChild(el('div', 'pile__empty', 'なし'));
+    }
+    e.appendChild(deck);
+
+    var bar = el('div', 'pile__bar');
+    bar.appendChild(el('span', 'pile__label', kindLabel));
+    bar.appendChild(el('span', 'pile__n', String(cards.length)));
+    e.appendChild(bar);
+
+    if (!cards.length) e.classList.add('is-empty');
     return e;
   }
 
-  function backCard() {
-    var e = el('div', 'card card--back');
-    e.appendChild(el('div', 'glyph', '⚡'));
+  /* 山札・捨て札のような、中身を見せないカウンター */
+  function counter(label, n, cls) {
+    var e = el('div', 'counter' + (cls ? ' ' + cls : ''));
+    e.appendChild(el('div', 'counter__n', String(n)));
+    e.appendChild(el('div', 'counter__label', label));
     return e;
   }
 
-  function card(c, detail) {
-    if (!c) return backCard();
-    if (c.kind === 'char') return charCard(c, detail);
-    if (c.kind === 'tech') return techCard(c, detail);
-    if (c.kind === 'coin') return coinCard(c);
-    if (c.kind === 'ball') return ballCard(c);
-    return backCard();
+  /* ================================================================
+   * 拡大表示（1枚をゆっくり見る）
+   * ============================================================== */
+  function bigCard(c) {
+    if (c.kind === 'tech') {
+      var e = el('div', 'big big--tech');
+      var art = el('div', 'big__art');
+      bg(art, c.img);
+      e.appendChild(art);
+      var body = el('div', 'big__body');
+      var h = el('div', 'big__head');
+      h.appendChild(icon(c.type));
+      h.appendChild(el('span', 'big__name', c.name));
+      if (c.eff.pierce) h.appendChild(el('span', 'tag tag--pierce', '貫通'));
+      body.appendChild(h);
+
+      var line = el('div', 'big__line');
+      line.appendChild(el('span', 'big__cap', '必要な選手'));
+      var who = el('span', 'big__who');
+      [c.main].concat(c.req).forEach(function (b) {
+        var w = el('span', 'big__whoone');
+        w.appendChild(reqChip(b));
+        w.appendChild(el('span', null, b));
+        who.appendChild(w);
+      });
+      line.appendChild(who);
+      body.appendChild(line);
+
+      if (c.dice) {
+        var d = el('div', 'big__line');
+        d.appendChild(el('span', 'big__cap', '成功する出目'));
+        var pips = el('span', 'big__pips');
+        for (var n = 1; n <= 6; n++) {
+          pips.appendChild(el('span', 'pip' + (c.dice.indexOf(n) >= 0 ? ' on' : ''), String(n)));
+        }
+        d.appendChild(pips);
+        body.appendChild(d);
+      }
+      if (c.efftxt) {
+        var f = el('div', 'big__line');
+        f.appendChild(el('span', 'big__cap', 'カードの効果'));
+        f.appendChild(el('span', 'big__eff', (c.eff.pierce ? '【貫通】素手キャッチでは止められない。' : '') + c.efftxt));
+        body.appendChild(f);
+      }
+      e.appendChild(body);
+      return e;
+    }
+
+    var ce = el('div', 'big big--char');
+    var t = faceTile(c);
+    t.classList.add('big__tile');
+    ce.appendChild(t);
+    var cb = el('div', 'big__body');
+    cb.appendChild(el('div', 'big__name', c.name + '（' + c.team + '・' + c.pos + '）'));
+    var tk = techsOf(c);
+    if (tk.main.length) {
+      var l1 = el('div', 'big__line');
+      l1.appendChild(el('span', 'big__cap', '撃てるワザ'));
+      var w1 = el('span', 'big__techs');
+      tk.main.forEach(function (tt) {
+        var r = el('span', 'big__techone');
+        r.appendChild(icon(tt.type));
+        r.appendChild(el('span', null, tt.name + (tt.req.length ? '（＋' + tt.req.join('・') + '）' : '')));
+        w1.appendChild(r);
+      });
+      l1.appendChild(w1);
+      cb.appendChild(l1);
+    }
+    if (tk.sub.length) {
+      var l2 = el('div', 'big__line');
+      l2.appendChild(el('span', 'big__cap', '力を貸すワザ'));
+      var w2 = el('span', 'big__techs');
+      tk.sub.forEach(function (tt) {
+        var r2 = el('span', 'big__techone');
+        r2.appendChild(icon(tt.type));
+        r2.appendChild(el('span', null, tt.name + '（' + tt.main + 'のワザ）'));
+        w2.appendChild(r2);
+      });
+      l2.appendChild(w2);
+      cb.appendChild(l2);
+    }
+    if (c.cap) cb.appendChild(el('div', 'big__eff', 'キャプテン。奪われず、場に出せず、変更できない。'));
+    ce.appendChild(cb);
+    return ce;
+  }
+
+  /* 場面ごとに一番ふさわしい形で1枚を出す */
+  function card(c, ctx) {
+    if (!c) return el('div', 'tile tile--back');
+    if (c.kind === 'char') return faceTile(c, ctx);
+    if (c.kind === 'tech') return techCard(c, ctx);
+    return el('div', 'tile tile--back');
   }
 
   NS.Render = {
-    card: card, backCard: backCard, url: url,
-    diceLabel: diceLabel, techsOf: techsOf, el: el, icon: icon, INV: INV
+    el: el, icon: icon, diceLabel: diceLabel, techsOf: techsOf, INV: INV,
+    faceTile: faceTile, techCard: techCard, reqChip: reqChip,
+    coinStack: coinStack, pile: pile, counter: counter, bigCard: bigCard, card: card,
+    url: function (p) { return NS.asset(p); }
   };
 
 })(window);

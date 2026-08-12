@@ -1,25 +1,43 @@
-/* テッペンとリーヨ！ ── 画面と操作
+/* テッペンとリーヨ！ ── 画面と操作（PC・横長前提）
  *
  * 方針：メニューではなく「カードそのもの」を触って遊ぶ。
- *  - 今できることは、そのカードが光る
- *  - できないことは、そのカードが沈む
- *  - タップで持ち上げて、カードにくっついたボタンで決める
- *  - 上へドラッグして場へ／相手へ放り込んでもよい
+ *  - 今すぐ撃てる／拾えるカードは光り、札に「撃てる」と出る
+ *  - 相手の番は自分の札が沈む
+ *  - タップで持ち上げて、カードの上に出るボタンで決める
+ *  - 上へドラッグして場や相手へ放り込んでもよい
+ *
+ * 画面は 1440x810 の版面に固定し、ウィンドウに合わせて全体を拡大縮小する。
+ * カードは枚数に応じて大きさを計算して並べるので、はみ出しも重なりも起きない。
  */
 (function (global) {
   'use strict';
 
   var NS = global.TEPPEN;
-  var E = NS.Engine, R = NS.Render, Fx = NS.Fx, DATA = NS.DATA, AI = NS.AI, Sim = NS.Sim;
+  var E = NS.Engine, R = NS.Render, Fx = NS.Fx, DATA = NS.DATA, AI = NS.AI, Sim = NS.Sim, CFG = NS.CONFIG;
 
   function $(id) { return document.getElementById(id); }
 
   var S = {
     game: null, human: -1,
-    playerCount: 3, humanPlays: true, myCap: 1,
+    playerCount: CFG.defaults.playerCount,
+    humanPlays: CFG.defaults.humanPlays,
+    myCap: CFG.defaults.captain,
     awaitAction: null, sel: null, targeting: null,
-    prevBall: 0, running: false, speed: 1
+    prevBall: 0, speed: CFG.defaults.speed
   };
+
+  /* ================================================================
+   * 版面をウィンドウに合わせる
+   * ============================================================== */
+  function fitStage() {
+    var c = CFG.stage;
+    var w = global.innerWidth || document.documentElement.clientWidth || c.w;
+    var h = global.innerHeight || document.documentElement.clientHeight || c.h;
+    /* 起動直後にウィンドウの大きさが 0 で返ってくることがある。
+     * そのまま計算すると盤面がつぶれるので、下限を入れておく。 */
+    var u = Math.max(0.3, Math.min(w / c.w, h / c.h));
+    document.documentElement.style.fontSize = (c.rem * u) + 'px';
+  }
 
   /* ================================================================
    * 設定シート
@@ -29,9 +47,8 @@
     seg.replaceChildren();
     [2, 3, 4].forEach(function (n) {
       var b = R.el('button', null, n + '人');
-      b.type = 'button'; b.setAttribute('role', 'radio');
+      b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.n = n;
       b.addEventListener('click', function () { S.playerCount = n; syncSetup(); });
-      b.dataset.n = n;
       seg.appendChild(b);
     });
 
@@ -40,17 +57,22 @@
     DATA.captains.forEach(function (c) {
       var b = R.el('button');
       b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.cap = c.cap;
-      var im = document.createElement('img');
-      im.src = R.url(c.img); im.alt = '';
-      b.appendChild(im);
+
+      var face = R.el('div', 'cap__face');
+      face.style.backgroundImage = 'url("' + NS.asset(c.img) + '")';
+      var f = NS.faceOf(c);
+      face.style.backgroundSize = f.zoom + '%';
+      face.style.backgroundPosition = f.x + '% ' + f.y + '%';
+      b.appendChild(face);
+
       var box = R.el('div');
       box.appendChild(R.el('b', null, c.name));
       var mine = R.techsOf(c);
-      var kp = mine.main.concat(mine.sub).map(function (t) {
+      box.appendChild(R.el('small', null, mine.main.concat(mine.sub).map(function (t) {
         return t.name + (t.dice ? '（' + R.diceLabel(t.dice) + '）' : '');
-      }).join(' / ');
-      box.appendChild(R.el('small', null, kp));
+      }).join(' / ')));
       b.appendChild(box);
+
       b.addEventListener('click', function () { S.myCap = c.cap; syncSetup(); });
       cg.appendChild(b);
     });
@@ -59,9 +81,11 @@
       $(id).addEventListener('input', syncSetup);
     });
     $('optHuman').addEventListener('change', syncSetup);
+    $('optSpeed').value = String(CFG.defaults.speed);
     $('optSpeed').addEventListener('change', function () {
       S.speed = parseFloat($('optSpeed').value); Fx.setSpeed(S.speed);
     });
+    Fx.setSpeed(S.speed);
     syncSetup();
   }
 
@@ -76,8 +100,7 @@
   }
 
   function syncSetup() {
-    var seg = $('segPlayers');
-    Array.prototype.forEach.call(seg.children, function (b) {
+    Array.prototype.forEach.call($('segPlayers').children, function (b) {
       b.setAttribute('aria-checked', (+b.dataset.n === S.playerCount) ? 'true' : 'false');
     });
     Array.prototype.forEach.call($('capGrid').children, function (b) {
@@ -92,22 +115,12 @@
     $('deckNote').textContent =
       '山札は ' + deck + ' 枚（キャラ ' + (DATA.deckChars.length * o.charCopies) +
       '＋必殺 ' + (DATA.techs.length * o.techCopies) + '＋コイン ' + o.coins + '＋ボール1）。' +
-      'そのうち ' + dealt + ' 枚を最初に配るので、山に残るのは ' + (deck - dealt) + ' 枚。' +
-      '山札が尽きたらタイムアップです。';
+      '最初に ' + dealt + ' 枚配るので、山に残るのは ' + (deck - dealt) + ' 枚。山札が尽きたらタイムアップです。';
   }
 
   /* ================================================================
    * ゲーム開始
    * ============================================================== */
-  function makeAgents(n) {
-    var agents = [];
-    for (var i = 0; i < n; i++) {
-      if (i === S.human) agents.push(humanAgent());
-      else agents.push(cpuAgent());
-    }
-    return agents;
-  }
-
   function cpuAgent() {
     var a = AI.makeAgent();
     return {
@@ -120,13 +133,16 @@
   }
 
   function startGame() {
+    /* 前の試合がまだ走っていたら止める。
+     * 止めないと2つの試合が同じ盤面に描き込み、決着表示まで混ざる。 */
+    if (S.game) S.game.aborted = true;
+
     var o = readSetup();
     var n = S.playerCount;
     S.human = S.humanPlays ? 0 : -1;
 
     var caps = [1, 2, 3, 4];
-    var rng = E.makeRng((Math.random() * 1e9) | 0);
-    E.shuffle(caps, rng);
+    E.shuffle(caps, E.makeRng((Math.random() * 1e9) | 0));
     if (S.human === 0) {
       caps.splice(caps.indexOf(S.myCap), 1);
       caps.unshift(S.myCap);
@@ -141,31 +157,33 @@
       });
     }
 
-    var settings = {
+    var agents = [];
+    for (var j = 0; j < n; j++) agents.push(j === S.human ? humanAgent() : cpuAgent());
+
+    var g = E.createGame({
       players: players, handSize: o.handSize, winScore: o.winScore,
       coins: o.coins, techCopies: o.techCopies, charCopies: o.charCopies,
       seed: (Math.random() * 1e9) | 0
-    };
+    }, agents, onEvent);
 
-    var g = E.createGame(settings, makeAgents(n), onEvent);
     S.game = g;
     S.prevBall = g.ball;
     S.sel = null; S.targeting = null; S.awaitAction = null;
+    lastTurn = -1;
     $('logList').replaceChildren();
-    $('app').hidden = false;
+    $('stage').hidden = false;
     Fx.clear();
+    fitStage();
     renderAll();
-    S.running = true;
-    E.run(g).then(function () { S.running = false; showFinish(g); },
-      function (err) {
-        /* 進行が止まったら黙って固まらせない。何が起きたか出して、やり直せるようにする */
-        S.running = false;
-        console.error(err);
-        Fx.finish('<div class="finish__word">試合が止まりました</div>' +
-          '<div class="finish__sub">' + (err && err.message ? err.message : err) +
-          '<br>この文言を作者に伝えてください（' + g.turnCount + '手目）</div>',
-          function () { $('setup').showModal(); });
-      });
+
+    E.run(g).then(function () { showFinish(g); }, function (err) {
+      if (g !== S.game) return;
+      console.error(err);
+      Fx.finish('<div class="finish__word">試合が止まりました</div>' +
+        '<div class="finish__sub">' + (err && err.message ? err.message : err) +
+        '<br>この文言を作者に伝えてください（' + g.turnCount + '手目）</div>',
+        function () { $('setup').showModal(); });
+    });
   }
 
   /* ================================================================
@@ -173,61 +191,62 @@
    * ============================================================== */
   function rectOf(el) { return el ? el.getBoundingClientRect() : null; }
   function playerEl(pi) {
-    if (pi === S.human) return $('me');
-    return document.querySelector('.opp[data-pi="' + pi + '"]') || $('scoreRows');
+    if (pi === S.human) return $('mybench');
+    return document.querySelector('.opp[data-pi="' + pi + '"]') || $('scores');
   }
-  function cardElByUid(uid) { return document.querySelector('.card[data-uid="' + uid + '"]'); }
+  function cardElByUid(uid) { return document.querySelector('[data-uid="' + uid + '"]'); }
   function pname(g, pi) { return g.players[pi].name; }
+  function teamText(team) { return team.map(function (c) { return c.name; }).join(' ＋ '); }
 
   async function onEvent(ev, g) {
+    if (g !== S.game) return;          /* やり直し前の試合の出来事は捨てる */
     addLog(ev, g);
     await animate(ev, g);
+    if (g !== S.game) return;
     renderAll();
   }
 
-  function teamText(team) {
-    return team.map(function (c) { return c.name; }).join(' ＋ ');
-  }
+  var CENTER = function () {
+    return { left: global.innerWidth / 2 - 60, top: global.innerHeight / 2 - 40, width: 120, height: 80 };
+  };
 
   async function animate(ev, g) {
     switch (ev.k) {
 
       case 'turnStart':
         setBanner(pname(g, ev.p) + ' の番');
-        if (ev.p !== S.human) await Fx.hold(260);
+        if (ev.p !== S.human) await Fx.hold(240);
         break;
 
-      case 'play': {
-        var src = rectOf(cardElByUid(ev.card.uid));
-        await Fx.flyCard(src, rectOf($('field')), ev.card, 480);
+      case 'play':
+        await Fx.flyCard(rectOf(cardElByUid(ev.card.uid)), rectOf($('piles')), ev.card, 480);
         break;
-      }
 
       case 'shootDeclare': {
         var s1 = rectOf(cardElByUid(ev.tech.uid));
-        if (s1) await Fx.flyCard(s1, { left: innerWidth / 2 - 40, top: innerHeight / 2 - 56, width: 80, height: 112 }, ev.tech, 380);
+        if (s1) await Fx.flyCard(s1, CENTER(), ev.tech, 340);
         await Fx.cutin(ev.tech, teamText(ev.team) + ' → ' + pname(g, ev.target),
-          ev.pierce ? '貫通！素手では止まらない' : null, 1300);
+          ev.pierce ? '貫通！　素手では止まらない' : null, 1350);
         break;
       }
 
       case 'defenseDeclare': {
         var s2 = rectOf(cardElByUid(ev.tech.uid));
-        if (s2) await Fx.flyCard(s2, { left: innerWidth / 2 - 40, top: innerHeight / 2 - 56, width: 80, height: 112 }, ev.tech, 380);
-        await Fx.cutin(ev.tech, teamText(ev.team) + ' → ' + pname(g, ev.target) + ' からボールを狙う', null, 1150);
+        if (s2) await Fx.flyCard(s2, CENTER(), ev.tech, 340);
+        await Fx.cutin(ev.tech, teamText(ev.team) + ' → ' + pname(g, ev.target) + ' からボールを狙う', null, 1200);
         break;
       }
 
       case 'catchDeclare':
         if (ev.mode === 'tech') {
-          await Fx.cutin(ev.tech, ev.keeper.name + ' が立ちはだかる', null, 1050);
+          await Fx.cutin(ev.tech, ev.keeper.name + ' が立ちはだかる', null, 1150);
         } else {
-          await Fx.toast(ev.keeper.name + ' の素手キャッチ！（' + R.diceLabel(ev.dice) + 'で成功）', 950);
+          await Fx.toast(ev.keeper.name + ' の素手キャッチ！（' + R.diceLabel(ev.dice) + ' で成功）', 950);
         }
         break;
 
       case 'dribbleDeclare':
-        await Fx.cutin(ev.tech, teamText(ev.team) + ' が振り切りにかかる', null, 1050);
+        await Fx.cutin(ev.tech, teamText(ev.team) + ' が振り切りにかかる', null, 1150);
         break;
 
       case 'noCatch':
@@ -249,9 +268,9 @@
         break;
 
       case 'ball': {
-        var from = rectOf(playerEl(S.prevBall));
-        var to = rectOf(playerEl(ev.to));
-        if (S.prevBall !== ev.to) await Fx.flyBall(from, to);
+        if (S.prevBall !== ev.to) {
+          await Fx.flyBall(rectOf(playerEl(S.prevBall)), rectOf(playerEl(ev.to)));
+        }
         S.prevBall = ev.to;
         break;
       }
@@ -305,8 +324,7 @@
       case 'turnStart':
         if (ev.turn !== lastTurn) {
           lastTurn = ev.turn;
-          var sep = R.el('li', 'turnsep', '― ' + (ev.turn + 1) + '手目 ―');
-          list.appendChild(sep);
+          list.appendChild(R.el('li', 'turnsep', '― ' + (ev.turn + 1) + '手目 ―'));
         }
         txt = pname(g, ev.p) + ' の番'; break;
       case 'play': txt = pname(g, ev.p) + ' が【' + ev.card.name + '】を場に出して1枚引いた'; break;
@@ -365,76 +383,72 @@
     return idx;
   }
 
+  /* 自分が持っている選手の一覧（必殺カードの「必要な選手」を色分けするのに使う） */
+  function ownedBases(g, pi) {
+    var o = {};
+    if (pi < 0) return o;
+    E.ownedChars(g, pi).forEach(function (c) { o[c.base] = true; });
+    return o;
+  }
+
   function renderAll() {
     var g = S.game;
     if (!g) return;
     var idx = moveIndex();
-    renderScore(g);
-    renderOpponents(g, idx);
-    renderField(g, idx);
-    renderMe(g, idx);
-    renderHand(g, idx);
-    renderMeta(g);
+    var owned = ownedBases(g, S.human);
+    renderScores(g);
+    renderOpponents(g, idx, owned);
+    renderField(g, idx, owned);
+    renderMyBench(g, idx);
+    renderHand(g, idx, owned);
     mountActs();
     if (S.targeting) setBanner('だれに撃つ？　相手をタップ');
     else if (S.awaitAction) setBanner('あなたの番　カードをタップ、または上へドラッグ');
   }
 
-  /* 選んだカードの真上に操作チップを貼る（手札は横スクロールするので body 直下に置く） */
-  function mountActs() {
-    var old = document.getElementById('actsLayer');
-    if (old) old.remove();
-    if (!S.sel) return;
-    var el = cardElByUid(S.sel);
-    if (!el) return;
-    el.scrollIntoView({ block: 'nearest', inline: 'center' });
-    var box = buildActs(el, el._card, el._moves);
-    box.id = 'actsLayer';
-    document.body.appendChild(box);
-    var r = el.getBoundingClientRect();
-    var b = box.getBoundingClientRect();
-    box.style.left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), global.innerWidth - b.width - 8) + 'px';
-    var top = r.top - b.height - 12;
-    box.style.top = (top < 8 ? r.bottom + 12 : top) + 'px';
-  }
-
-  function renderScore(g) {
-    var box = $('scoreRows');
+  function renderScores(g) {
+    var box = $('scores');
     box.replaceChildren();
     g.players.forEach(function (p, i) {
-      var c = R.el('div', 'pchip');
+      var c = R.el('div', 'pscore');
       if (i === g.turn) c.classList.add('is-turn');
-      if (i === g.ball) c.classList.add('is-ball');
       if (i === S.human) c.classList.add('is-me');
-      c.appendChild(R.el('div', 'pchip__score', String(p.score)));
-      c.appendChild(R.el('div', 'pchip__name', p.name));
-      c.appendChild(R.el('div', 'pchip__meta', p.captain.name + '・手札' + p.hand.length));
+      c.appendChild(R.el('div', 'pscore__n', String(p.score)));
+      c.appendChild(R.el('div', 'pscore__name', p.name));
+      if (i === g.ball) c.appendChild(R.el('div', 'pscore__ball', '⚽'));
+      c.appendChild(R.el('div', 'pscore__meta', p.captain.name + '・手札' + p.hand.length));
       box.appendChild(c);
     });
   }
 
-  function renderMeta(g) {
-    var coins = S.human >= 0 ? E.countCoins(g, S.human) : 0;
-    var m = $('handMeta');
-    m.replaceChildren();
-    function add(label, val) {
-      var s = R.el('span');
-      s.appendChild(document.createTextNode(label + ' '));
-      s.appendChild(R.el('b', null, String(val)));
-      m.appendChild(s);
+  /* 顔タイルの大きさを、枚数と入れ物の縦横の両方から決める。
+   * 幅だけで決めると段が増えたときに縦へあふれるので、両方見る。
+   * タイルの高さ ≒ 幅 × 1.26（顔＋名前の帯）。 */
+  function benchTile(n, availW, availH, maxTw) {
+    if (n <= 0) return maxTw;
+    var best = 0;
+    for (var r = 1; r <= 3; r++) {
+      var per = Math.ceil(n / r);
+      var byW = (availW - (per - 1) * 0.25) / per;
+      var byH = (availH - (r - 1) * 0.25) / (r * 1.26);
+      var tw = Math.min(maxTw, byW, byH);
+      if (tw > best) best = tw;
     }
-    add('山札', g.deck.length);
-    add('場', g.field.length);
-    add('捨て札', g.discard.length);
-    if (S.human >= 0) { add('コイン', coins); add('得点', g.players[S.human].score + '/' + g.settings.winScore); }
-    else add('観戦中', '');
+    return Math.max(1.8, best);
   }
 
-  function renderOpponents(g, idx) {
+  function renderOpponents(g, idx, owned) {
     var box = $('opponents');
     box.replaceChildren();
-    g.players.forEach(function (p, i) {
-      if (i === S.human) return;
+    var others = [];
+    g.players.forEach(function (p, i) { if (i !== S.human) others.push(i); });
+    if (!others.length) return;
+
+    /* 相手パネル1枚ぶんの内寸（rem）。版面が固定なので計算で出せる */
+    var panelInner = (90 - 1.8 - (others.length - 1) * 0.5) / others.length - 1.1;
+
+    others.forEach(function (i) {
+      var p = g.players[i];
       var o = R.el('div', 'opp');
       o.dataset.pi = i;
       if (i === g.turn) o.classList.add('is-turn');
@@ -443,27 +457,22 @@
       head.appendChild(R.el('span', 'opp__name', p.name));
       head.appendChild(R.el('span', 'opp__score', String(p.score)));
       if (i === g.ball) head.appendChild(R.el('span', 'opp__ball', '⚽'));
+      head.appendChild(R.el('span', 'opp__hidden', '伏せ ' + E.hiddenHand(g, i).length));
       o.appendChild(head);
 
-      var cards = R.el('div', 'opp__cards');
-      var cap = R.card(p.captain);
-      cap.classList.add('card--nano');
-      tagCard(cap, p.captain, 'oppcap', i);
-      cards.appendChild(cap);
-      E.handChars(g, i).forEach(function (c) {
-        var e = R.card(c);
-        e.classList.add('card--nano');
-        var ms = idx['opp' + i + '|char|' + c.name];
-        tagCard(e, c, 'opp' + i, i, ms);
-        cards.appendChild(e);
-      });
-      o.appendChild(cards);
+      var chars = [p.captain].concat(E.handChars(g, i));
+      /* パネルの内寸（幅・高さ）に収まる大きさを出す */
+      var tw = benchTile(chars.length, panelInner, 12.5 - 0.8 - 1.5, 4.6);
 
-      var hid = E.hiddenHand(g, i).length;
-      var hbox = R.el('div', 'opp__hidden');
-      for (var k = 0; k < Math.min(hid, 5); k++) hbox.appendChild(R.el('span', 'fan'));
-      hbox.appendChild(document.createTextNode('伏せ ' + hid));
-      o.appendChild(hbox);
+      var tiles = R.el('div', 'opp__tiles');
+      chars.forEach(function (c, k) {
+        var e = R.faceTile(c, { small: true });
+        e.style.setProperty('--tw', tw + 'rem');
+        var ms = (k === 0) ? null : idx['opp' + i + '|char|' + c.name];
+        wire(e, c, 'opp' + i, ms);
+        tiles.appendChild(e);
+      });
+      o.appendChild(tiles);
 
       if (S.targeting && S.targeting.byTarget[i]) {
         o.classList.add('is-targetable');
@@ -476,87 +485,122 @@
     });
   }
 
-  function renderField(g, idx) {
-    var box = $('field');
+  /* 場は種類ごとの山にまとめる。
+   * ルールブック9章「場が大きくなってきたら、種類ごとに分けて並べる」を画面でもやる。
+   * 平均39枚・最大156枚まで溜まるので、1枚ずつ並べるやり方では画面に入らない。 */
+  var PILE_DEFS = [
+    { key: 'シュート', test: function (c) { return c.kind === 'tech' && c.type === 'シュート'; } },
+    { key: 'ドリブル', test: function (c) { return c.kind === 'tech' && c.type === 'ドリブル'; } },
+    { key: 'ディフェンス', test: function (c) { return c.kind === 'tech' && c.type === 'ディフェンス'; } },
+    { key: 'キャッチ', test: function (c) { return c.kind === 'tech' && c.type === 'キャッチ'; } },
+    { key: '選手', test: function (c) { return c.kind === 'char'; } }
+  ];
+
+  function renderField(g, idx, owned) {
+    var box = $('piles');
     box.replaceChildren();
-    if (!g.field.length) {
-      box.appendChild(R.el('div', 'field__empty', 'まだ何も落ちていない。技を撃つと、そのカードはここに落ちる。'));
-      return;
-    }
-    var order = { 'シュート': 0, 'ドリブル': 1, 'ディフェンス': 2, 'キャッチ': 3 };
-    var sorted = g.field.slice().sort(function (a, b) {
-      if (a.kind !== b.kind) return a.kind === 'char' ? 1 : -1;
-      if (a.kind === 'tech') return (order[a.type] - order[b.type]) || a.name.localeCompare(b.name);
-      return a.name.localeCompare(b.name);
-    });
-    sorted.forEach(function (c) {
-      var e = R.card(c);
-      e.classList.add('card--mini');
-      tagCard(e, c, 'field', -1, idx['field|' + c.kind + '|' + c.name]);
+
+    PILE_DEFS.forEach(function (def) {
+      var cards = g.field.filter(def.test);
+      var live = cards.some(function (c) { return idx['field|' + c.kind + '|' + c.name]; });
+      var e = R.pile(def.key, cards, { owned: owned });
+      if (live) e.classList.add('is-live');
+      e.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (!cards.length) return;
+        openPile(def.key, cards, idx);
+      });
       box.appendChild(e);
     });
+
+    var cnt = $('counters');
+    cnt.replaceChildren();
+    cnt.appendChild(R.counter('山札', g.deck.length, 'counter--deck'));
+    cnt.appendChild(R.counter('捨て札', g.discard.length));
+    if (S.human >= 0) cnt.appendChild(R.coinStack(E.countCoins(g, S.human)));
   }
 
-  function renderMe(g, idx) {
-    var box = $('me');
+  function renderMyBench(g, idx) {
+    var box = $('mybench');
     box.replaceChildren();
     if (S.human < 0) {
-      box.appendChild(R.el('div', 'me__label', 'CPU同士の試合を見ています'));
+      box.appendChild(R.el('div', 'bench__label', 'CPU同士の試合を見ています'));
       return;
     }
-    box.appendChild(R.el('div', 'me__label', '自分の選手（公開）'));
-    var cap = R.card(g.players[S.human].captain);
-    tagCard(cap, g.players[S.human].captain, 'cap', -1);
-    box.appendChild(cap);
-    E.handChars(g, S.human).forEach(function (c) {
-      var e = R.card(c);
-      tagCard(e, c, 'own', -1, idx['own|char|' + c.name]);
+    box.appendChild(R.el('div', 'bench__label', '自分の選手'));
+    /* 90（版面）－1.8（左右の余白）－2.2（縦書きラベルと安全代） */
+    var chars = [g.players[S.human].captain].concat(E.handChars(g, S.human));
+    var tw = benchTile(chars.length, 90 - 1.8 - 2.2, 9 - 0.85, 7.2);
+    chars.forEach(function (c, k) {
+      var e = R.faceTile(c);
+      e.style.setProperty('--tw', tw + 'rem');
+      wire(e, c, k === 0 ? 'cap' : 'own', k === 0 ? null : idx['own|char|' + c.name]);
       box.appendChild(e);
     });
   }
 
-  function renderHand(g, idx) {
+  /* 手札の必殺カードは、枚数から段数と大きさを計算して並べる。
+   * こうすると重ならないので、技名が必ず読める。 */
+  function handLayout(n) {
+    var AVAIL_W = 90 - 1.8 - 4 - 0.8;             /* 版面 － 余白 － 左の欄 － すき間 */
+    var AVAIL_H = 50.625 - 3.25 - 12.5 - 10 - 9 - 1;
+    var best = { cw: 0, rows: 1 };
+    for (var r = 1; r <= 4; r++) {
+      var per = Math.ceil(n / r);
+      var byW = (AVAIL_W - (per - 1) * 0.4) / per;
+      var byH = ((AVAIL_H - (r - 1) * 0.4) / r) * 1.88;
+      var cw = Math.min(20, byW, byH);
+      if (cw > best.cw) best = { cw: cw, rows: r };
+    }
+    return best;
+  }
+
+  function renderHand(g, idx, owned) {
+    var side = $('handSide');
+    side.replaceChildren();
     var box = $('hand');
     box.replaceChildren();
+
     if (S.human < 0) {
       box.appendChild(R.el('div', 'hand__empty', '観戦モード。CPUだけで進みます。'));
       return;
     }
-    var hand = g.players[S.human].hand.filter(function (c) { return c.kind !== 'char'; });
-    if (!hand.length) { box.appendChild(R.el('div', 'hand__empty', '伏せて持つカードがない')); return; }
-    var rank = { tech: 0, coin: 1, ball: 2 };
+
+    side.appendChild(R.el('div', 'bench__label', '手札'));
+    if (g.ball === S.human) {
+      var b = R.el('div', 'ballmark', '⚽');
+      b.title = 'ボールを持っている';
+      side.appendChild(b);
+    }
+
+    var techs = g.players[S.human].hand.filter(function (c) { return c.kind === 'tech'; });
+    if (!techs.length) { box.appendChild(R.el('div', 'hand__empty', '必殺カードを持っていない')); return; }
+
     var to = { 'シュート': 0, 'ドリブル': 1, 'ディフェンス': 2, 'キャッチ': 3 };
-    hand.sort(function (a, b) {
-      if (rank[a.kind] !== rank[b.kind]) return rank[a.kind] - rank[b.kind];
-      if (a.kind === 'tech') return (to[a.type] - to[b.type]) || a.name.localeCompare(b.name);
-      return 0;
-    });
-    hand.forEach(function (c) {
-      var e = R.card(c);
-      var ms = c.kind === 'tech' ? idx['own|tech|' + c.name] : idx['own|' + c.kind + '|' + c.name];
-      tagCard(e, c, 'own', -1, ms);
+    techs.sort(function (a, b2) { return (to[a.type] - to[b2.type]) || a.name.localeCompare(b2.name); });
+
+    var lay = handLayout(techs.length);
+    box.style.setProperty('--cw', lay.cw + 'rem');
+    techs.forEach(function (c) {
+      var e = R.techCard(c, { owned: owned });
+      e.style.setProperty('--cw', lay.cw + 'rem');
+      wire(e, c, 'own', idx['own|tech|' + c.name]);
       box.appendChild(e);
     });
   }
 
   /* カードに「今できること」を貼りつける */
-  function tagCard(e, cardData, zone, oppIdx, moves) {
+  function wire(e, cardData, zone, moves) {
     e.dataset.zone = zone;
     e.dataset.name = cardData.name || '';
     e._card = cardData;
     e._moves = moves || null;
 
-    /* 見た目の3段階
-     *   is-live … この1枚で「今すぐ」ワザが撃てる／拾える／引き抜ける
-     *   ふつう  … 場に出すことはできる（いつでもできるので目立たせない）
-     *   is-dim  … 相手の番。自分は何もできない
-     * 「使えるカードが光る」を、意味のある違いにするための切り分け。 */
     var kinds = {};
     (moves || []).forEach(function (m) { kinds[m.t] = 1; });
     var liveLabel = kinds.shoot ? '撃てる'
       : kinds.defense ? '奪える'
-        : kinds.scoutField ? '拾える'
-          : kinds.scoutPlayer ? '引き抜ける' : null;
+        : kinds.scoutPlayer ? '引き抜ける' : null;
 
     if (!S.awaitAction) {
       if (zone === 'own' || zone === 'cap') e.classList.add('is-dim');
@@ -565,6 +609,7 @@
       e.appendChild(R.el('div', 'card__hot', liveLabel));
     }
     if (S.sel === cardData.uid) e.classList.add('is-sel');
+
     e.addEventListener('pointerdown', onCardDown);
     e.addEventListener('click', function (ev) { ev.stopPropagation(); });
     return e;
@@ -575,7 +620,6 @@
    * ============================================================== */
   function buildActs(el, cardData, moves) {
     var box = R.el('div', 'acts');
-    var g = S.game;
 
     function chip(label, cls, fn) {
       var b = R.el('button', cls || null, label);
@@ -584,8 +628,6 @@
       b.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
       box.appendChild(b);
     }
-
-    (moves || []).forEach(function (m) { m._label = null; });
 
     var byType = {};
     (moves || []).forEach(function (m) { (byType[m.t] = byType[m.t] || []).push(m); });
@@ -599,25 +641,30 @@
         renderAll();
       });
     }
-    if (byType.defense) {
-      chip('ディフェンス！', null, function () {
-        commit(withUid(byType.defense[0], cardData));
-      });
-    }
-    if (byType.play) {
-      chip('場に出す＋1枚引く', 'sub', function () {
-        commit(withUid(byType.play[0], cardData));
-      });
-    }
-    if (byType.scoutField) {
-      chip('拾う ⚡1', null, function () { commit(withUid(byType.scoutField[0], cardData)); });
-    }
-    if (byType.scoutPlayer) {
-      chip('引き抜く ⚡2', null, function () { commit(withUid(byType.scoutPlayer[0], cardData)); });
-    }
-    chip('見る', 'sub', function () { showZoom(cardData); });
+    if (byType.defense) chip('ディフェンス！', null, function () { commit(withUid(byType.defense[0], cardData)); });
+    if (byType.play) chip('場に出す＋1枚引く', 'sub', function () { commit(withUid(byType.play[0], cardData)); });
+    if (byType.scoutField) chip('拾う ⚡1', null, function () { commit(withUid(byType.scoutField[0], cardData)); });
+    if (byType.scoutPlayer) chip('引き抜く ⚡2', null, function () { commit(withUid(byType.scoutPlayer[0], cardData)); });
+    chip('大きく見る', 'sub', function () { showZoom(cardData); });
     chip('やめる', 'sub', function () { S.sel = null; renderAll(); });
     return box;
+  }
+
+  /* 選んだカードの真上に操作チップを貼る */
+  function mountActs() {
+    var old = $('actsLayer');
+    if (old) old.remove();
+    if (!S.sel) return;
+    var el = cardElByUid(S.sel);
+    if (!el) return;
+    var box = buildActs(el, el._card, el._moves);
+    box.id = 'actsLayer';
+    document.body.appendChild(box);
+    var r = el.getBoundingClientRect();
+    var b = box.getBoundingClientRect();
+    box.style.left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), global.innerWidth - b.width - 8) + 'px';
+    var top = r.top - b.height - 12;
+    box.style.top = (top < 8 ? Math.min(r.bottom + 12, global.innerHeight - b.height - 8) : top) + 'px';
   }
 
   function withUid(move, cardData) {
@@ -633,7 +680,7 @@
     var res = S.awaitAction.resolve;
     S.awaitAction = null; S.sel = null; S.targeting = null;
     setBanner(null);
-    document.querySelector('.handbar').classList.remove('is-lit');
+    document.querySelector('.handrow').classList.remove('is-lit');
     renderAll();
     res(move);
   }
@@ -649,53 +696,48 @@
     drag = {
       el: el, card: el._card, moves: el._moves,
       x0: ev.clientX, y0: ev.clientY, t0: Date.now(),
-      moved: false, ghost: null, id: ev.pointerId
+      moved: false, ghost: null
     };
     global.addEventListener('pointermove', onCardMove);
     global.addEventListener('pointerup', onCardUp);
     global.addEventListener('pointercancel', onCardCancel);
   }
 
-  function canDragFrom(zone) { return zone === 'own'; }
-
   function onCardMove(ev) {
     if (!drag) return;
     var dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
     if (!drag.moved) {
       if (Math.abs(dx) + Math.abs(dy) < 12) return;
-      if (!drag.moves || !drag.moves.length || !canDragFrom(drag.el.dataset.zone)) { cleanupDrag(); return; }
-      if (Math.abs(dy) < Math.abs(dx)) { cleanupDrag(); return; }   /* 横は手札スクロールに譲る */
+      if (!drag.moves || !drag.moves.length || drag.el.dataset.zone !== 'own') { cleanupDrag(); return; }
       drag.moved = true;
-      startGhost(ev);
+      startGhost();
     }
-    var r = drag.rect;
-    drag.ghost.style.left = (ev.clientX - r.w / 2) + 'px';
-    drag.ghost.style.top = (ev.clientY - r.h * 0.62) + 'px';
+    drag.ghost.style.left = (ev.clientX - drag.rect.w / 2) + 'px';
+    drag.ghost.style.top = (ev.clientY - drag.rect.h * 0.6) + 'px';
     highlightDrop(ev.clientX, ev.clientY);
   }
 
-  function startGhost(ev) {
+  function startGhost() {
     var b = drag.el.getBoundingClientRect();
     drag.rect = { w: b.width, h: b.height };
-    var gh = R.card(drag.card);
+    var gh = drag.card.kind === 'tech'
+      ? R.techCard(drag.card, { owned: ownedBases(S.game, S.human) })
+      : R.faceTile(drag.card);
     gh.classList.add('is-drag');
-    gh.style.width = b.width + 'px';
-    gh.style.height = b.height + 'px';
+    gh.style.setProperty('--cw', (b.width / parseFloat(getComputedStyle(document.documentElement).fontSize)) + 'rem');
+    gh.style.setProperty('--tw', (b.width / parseFloat(getComputedStyle(document.documentElement).fontSize)) + 'rem');
     document.body.appendChild(gh);
     drag.ghost = gh;
     drag.el.style.opacity = '.25';
 
     var types = {};
     drag.moves.forEach(function (m) { types[m.t] = 1; });
-    drag.types = types;
-    if (types.play) $('field').classList.add('is-dropzone');
     if (types.shoot || types.defense) {
       document.querySelectorAll('.opp').forEach(function (o) {
         var pi = +o.dataset.pi;
-        var ok = drag.moves.some(function (m) {
-          return (m.t === 'shoot' && m.target === pi) || (m.t === 'defense' && m.target === pi);
-        });
-        if (ok) o.classList.add('is-targetable');
+        if (drag.moves.some(function (m) { return (m.t === 'shoot' || m.t === 'defense') && m.target === pi; })) {
+          o.classList.add('is-targetable');
+        }
       });
     }
   }
@@ -703,7 +745,6 @@
   function highlightDrop(x, y) {
     var el = document.elementFromPoint(x, y);
     document.querySelectorAll('.opp.is-hot').forEach(function (o) { o.classList.remove('is-hot'); });
-    $('field').classList.toggle('is-hot', !!(el && el.closest && el.closest('.fieldzone')));
     var opp = el && el.closest && el.closest('.opp');
     if (opp && opp.classList.contains('is-targetable')) opp.classList.add('is-hot');
   }
@@ -718,14 +759,13 @@
       return;
     }
     var target = document.elementFromPoint(ev.clientX, ev.clientY);
-    var moves = drag.moves, card = drag.card;
-    var chosen = null;
+    var moves = drag.moves, card = drag.card, chosen = null;
     if (target && target.closest) {
       var opp = target.closest('.opp');
       if (opp) {
         var pi = +opp.dataset.pi;
         chosen = moves.filter(function (m) { return (m.t === 'shoot' || m.t === 'defense') && m.target === pi; })[0] || null;
-      } else if (target.closest('.fieldzone')) {
+      } else if (target.closest('.fieldrow')) {
         chosen = moves.filter(function (m) { return m.t === 'play'; })[0] || null;
       }
     }
@@ -745,42 +785,35 @@
       if (drag.el) drag.el.style.opacity = '';
     }
     drag = null;
-    $('field').classList.remove('is-dropzone', 'is-hot');
     document.querySelectorAll('.opp').forEach(function (o) { o.classList.remove('is-hot'); });
     if (!S.targeting) document.querySelectorAll('.opp').forEach(function (o) { o.classList.remove('is-targetable'); });
   }
 
   function tapCard(el, ev) {
-    var cardEl = (ev.target.closest && ev.target.closest('.card')) || el;
-    if (!cardEl || !cardEl._card) return;
-    var c = cardEl._card;
-    if (!S.awaitAction || !cardEl._moves || !cardEl._moves.length) { showZoom(c); return; }
+    var target = (ev.target.closest && (ev.target.closest('.tcard') || ev.target.closest('.tile'))) || el;
+    if (!target || !target._card) return;
+    var c = target._card;
+    if (!S.awaitAction || !target._moves || !target._moves.length) { showZoom(c); return; }
     S.sel = (S.sel === c.uid) ? null : c.uid;
     S.targeting = null;
     renderAll();
   }
 
   /* ================================================================
-   * 選ばせるパネル（リアクションなど）
+   * 選ばせるパネル
    * ============================================================== */
   function showChooser(cfg) {
     return new Promise(function (resolve) {
       var box = $('chooser');
       $('chooserTitle').textContent = cfg.title;
+      $('chooserSub').textContent = cfg.sub || '';
 
-      var sub = $('chooserSub');
-      sub.replaceChildren();
+      var inc = $('chooserIncoming');
+      inc.replaceChildren();
       if (cfg.incoming) {
-        var row = R.el('div');
-        row.style.cssText = 'display:flex;gap:.7rem;align-items:center;';
-        var ic = R.card(cfg.incoming, true);
-        ic.classList.add('card--mini');
+        var ic = R.techCard(cfg.incoming, { owned: ownedBases(S.game, S.human) });
         ic.style.cursor = 'default';
-        row.appendChild(ic);
-        row.appendChild(R.el('div', null, cfg.sub || ''));
-        sub.appendChild(row);
-      } else if (cfg.sub) {
-        sub.textContent = cfg.sub;
+        inc.appendChild(ic);
       }
 
       var cards = $('chooserCards');
@@ -817,6 +850,37 @@
     return d;
   }
 
+  /* 場の山を開いて中身を全部見せる。拾えるときはそのまま選べる */
+  function openPile(label, cards, idx) {
+    var owned = ownedBases(S.game, S.human);
+    var seen = {}, uniq = [];
+    cards.forEach(function (c) {
+      var k = c.kind + ':' + c.name;
+      if (seen[k]) { seen[k].n++; return; }
+      seen[k] = { card: c, n: 1 };
+      uniq.push(seen[k]);
+    });
+
+    var opts = uniq.map(function (u) {
+      var e = u.card.kind === 'tech' ? R.techCard(u.card, { owned: owned }) : R.faceTile(u.card);
+      var ms = idx['field|' + u.card.kind + '|' + u.card.name];
+      return {
+        el: e,
+        label: u.n > 1 ? (u.n + '枚') : '',
+        sub: ms ? 'コイン1で拾う' : '',
+        value: ms ? withUid(ms[0], u.card) : null
+      };
+    });
+
+    var canTake = opts.some(function (o) { return o.value; });
+    showChooser({
+      title: '場の「' + label + '」　' + cards.length + '枚',
+      sub: canTake ? 'コイン1枚で1枚もらえます。選んでください。' : '中身の確認だけです（拾うにはコインと自分の番が必要）。',
+      options: opts,
+      foot: [{ label: '閉じる', value: null }]
+    }).then(function (v) { if (v) commit(v); });
+  }
+
   /* ================================================================
    * 人間のエージェント
    * ============================================================== */
@@ -824,28 +888,31 @@
     return {
       cpu: false,
       decide: function (g, pi, req) {
+        var owned = ownedBases(g, pi);
         switch (req.kind) {
           case 'action':
             return new Promise(function (resolve) {
               S.awaitAction = { options: req.options, resolve: resolve };
               S.sel = null; S.targeting = null;
               renderAll();
-              var hb = document.querySelector('.handbar');
+              var hb = document.querySelector('.handrow');
               hb.classList.remove('is-lit');
-              void hb.offsetWidth;                    /* アニメを撃ち直す */
+              void hb.offsetWidth;
               hb.classList.add('is-lit');
             });
 
           case 'catch': {
             var opts = req.options.filter(function (o) { return o.t !== 'none'; }).map(function (o) {
               if (o.t === 'tech') {
-                var e = R.card(o.card, true);
-                e.style.cursor = 'pointer';
-                return { el: e, label: R.diceLabel(o.dice) + ' で成功', sub: o.keeper.name + '　失敗すると山札行き', value: o };
+                return {
+                  el: R.techCard(o.card, { owned: owned }),
+                  label: R.diceLabel(o.dice) + ' で成功（' + o.dice.length + '/6）',
+                  sub: o.keeper.name + '　失敗すると山札行き', value: o
+                };
               }
               return {
                 el: bareTile('素手キャッチ', R.diceLabel(o.dice), o.keeper.name),
-                label: (o.dice.length) + '/6', sub: '失うカードなし', value: o
+                label: o.dice.length + '/6', sub: '失うカードなし', value: o
               };
             });
             return showChooser({
@@ -861,8 +928,11 @@
 
           case 'dribble': {
             var dopts = req.options.filter(function (o) { return o.t !== 'none'; }).map(function (o) {
-              var e = R.card(o.card, true);
-              return { el: e, label: R.diceLabel(o.dice) + ' で成功', sub: '失敗すると山札行き', value: o };
+              return {
+                el: R.techCard(o.card, { owned: owned }),
+                label: R.diceLabel(o.dice) + ' で成功（' + o.dice.length + '/6）',
+                sub: '失敗すると山札行き', value: o
+              };
             });
             return showChooser({
               title: 'ディフェンスを仕掛けられた',
@@ -875,13 +945,11 @@
 
           case 'pickField': {
             var fopts = req.options.map(function (c) {
-              var e = R.card(c, true);
-              e.classList.add('card--mini');
-              return { el: e, value: c };
+              return { el: c.kind === 'tech' ? R.techCard(c, { owned: owned }) : R.faceTile(c), value: c };
             });
             return showChooser({
               title: req.purpose === 'toDeck' ? '場から1枚、山札に戻す' : '場から1枚、無料でもらう',
-              sub: req.purpose === 'toDeck' ? '相手が狙っていそうなカードを消せる。' : 'コインを払わずに拾える。',
+              sub: req.purpose === 'toDeck' ? '相手が狙っていそうなカードを消せます。' : 'コインを払わずに拾えます。',
               options: fopts, foot: []
             });
           }
@@ -891,14 +959,12 @@
             req.options.forEach(function (card) {
               S.game.players.forEach(function (p, j) {
                 if (j === S.human) return;
-                var e = R.card(card, true);
-                e.classList.add('card--mini');
-                sopts.push({ el: e, label: p.name + 'へ', value: { card: card, target: j } });
+                sopts.push({ el: R.techCard(card, { owned: owned }), label: p.name + 'へ', value: { card: card, target: j } });
               });
             });
             return showChooser({
               title: '奪ってそのまま撃てる！',
-              sub: '奪ったキャラクターがシュートワザを持っている。',
+              sub: '奪ったキャラクターがシュートワザを持っています。',
               options: sopts, foot: [{ label: '撃たない', value: null }]
             });
           }
@@ -912,15 +978,19 @@
    * 拡大表示
    * ============================================================== */
   function showZoom(c) {
-    var z = $('zoom'), inner = $('zoomInner');
-    inner.replaceChildren(R.card(c, true));
-    if (!z.open) z.showModal();
+    showChooser({
+      title: c.name,
+      sub: '',
+      options: [{ el: R.bigCard(c), value: null }],
+      foot: [{ label: '閉じる', value: null }]
+    });
   }
 
   /* ================================================================
    * 決着
    * ============================================================== */
   function showFinish(g) {
+    if (g !== S.game || g.endReason === 'aborted') return;
     var reason = {
       score: '規定点に到達', timeup: 'タイムアップ・最多得点',
       timeupFirst: 'タイムアップ・同点だが先に得点', draw: '全員0点', stuck: '進行が止まった（要調査）'
@@ -937,8 +1007,7 @@
       '<div class="finish__word">' + word + '</div>' +
       '<div class="finish__scores">' + scores + '</div>' +
       '<div class="finish__sub">' + reason + '　／　' + g.turnCount + '手　／　山札のこり ' + g.deck.length + '枚</div>',
-      function () { $('setup').showModal(); }
-    );
+      function () { $('setup').showModal(); });
   }
 
   /* ================================================================
@@ -947,15 +1016,14 @@
   async function runSim() {
     var o = readSetup();
     var n = Math.max(10, +$('simN').value || 300);
-    var base = {
-      playerCount: S.playerCount, handSize: o.handSize, winScore: o.winScore,
-      coins: o.coins, techCopies: o.techCopies, charCopies: o.charCopies
-    };
     $('simProg').hidden = false;
     $('simOut').replaceChildren();
     $('btnSimRun').disabled = true;
 
-    var st = await Sim.run(base, n, function (done, total) {
+    var st = await Sim.run({
+      playerCount: S.playerCount, handSize: o.handSize, winScore: o.winScore,
+      coins: o.coins, techCopies: o.techCopies, charCopies: o.charCopies
+    }, n, function (done, total) {
       $('simProgBar').style.inlineSize = (done / total * 100) + '%';
     });
 
@@ -973,11 +1041,10 @@
       }).join('') + '</table>';
     }
 
-    var decidedRate = st.decided / g;
     var out = '';
     out += '<h3>決着</h3>' + tbl([
       ['試合数', g],
-      [st.config.winScore + '点に到達して決着', P(st.decided, g) + '（' + st.decided + '）', decidedRate < 0.5],
+      [st.config.winScore + '点に到達して決着', P(st.decided, g) + '（' + st.decided + '）', st.decided / g < 0.5],
       ['タイムアップ（山札切れ）', P(st.timeup, g)],
       ['全員0点で引き分け', P(st.draw, g), st.draw / g > 0.1],
       ['進行停止（要調査）', P(st.stuck, g), st.stuck > 0],
@@ -1011,9 +1078,9 @@
     ]);
 
     out += '<h3>全員が試合に参加できているか</h3>' + tbl([
-      ['1試合を通してボールに一度も触らなかった人', P(st.neverBall, st.seats), st.neverBall / st.seats > 0.1],
+      ['一度もボールに触らなかった人', P(st.neverBall, st.seats), st.neverBall / st.seats > 0.1],
       ['一度もシュートを撃たなかった人', P(st.neverShot, st.seats), st.neverShot / st.seats > 0.1],
-      ['いちばん撃った人が占めるシュートの割合', (st.topShare / (st.topShareN || 1) * 100).toFixed(1) + '%',
+      ['いちばん撃った人が占める割合', (st.topShare / (st.topShareN || 1) * 100).toFixed(1) + '%',
         st.topShare / (st.topShareN || 1) > 0.55]
     ]);
 
@@ -1031,20 +1098,19 @@
 
     var caps = ['円堂守①', '円堂守②', '円堂守③', '円堂守④'];
     out += '<h3>円堂4種の勝率</h3>' + tbl(caps.map(function (nm, i) {
-      var w = st.winByCaptain[i], pl = st.gamesByCaptain[i];
-      return [nm, P(w, pl) + '（' + w + '/' + pl + '）'];
+      return [nm, P(st.winByCaptain[i], st.gamesByCaptain[i]) + '（' + st.winByCaptain[i] + '/' + st.gamesByCaptain[i] + '）'];
     }));
 
-    var gb = Sim.topList(st.goalByTech, 12);
     out += '<h3>得点したワザ（上位）</h3><table>' +
-      gb.map(function (r) { return '<tr><th>' + r.k + '</th><td>' + r.v + '</td></tr>'; }).join('') + '</table>';
+      Sim.topList(st.goalByTech, 12).map(function (r) {
+        return '<tr><th>' + r.k + '</th><td>' + r.v + '</td></tr>';
+      }).join('') + '</table>';
 
-    var cb = Object.keys(st.catchByTech).map(function (k) {
-      return [k, st.catchByTech[k].tried, st.catchByTech[k].ok];
-    }).sort(function (a, b) { return b[1] - a[1]; });
     out += '<h3>使われたキャッチ</h3><table>' +
-      cb.map(function (r) { return '<tr><th>' + r[0] + '</th><td>' + r[1] + '回中 ' + r[2] + '成功</td></tr>'; }).join('') +
-      '</table>';
+      Object.keys(st.catchByTech).map(function (k) { return [k, st.catchByTech[k]]; })
+        .sort(function (a, b) { return b[1].tried - a[1].tried; })
+        .map(function (r) { return '<tr><th>' + r[0] + '</th><td>' + r[1].tried + '回中 ' + r[1].ok + '成功</td></tr>'; })
+        .join('') + '</table>';
 
     var spread = Object.keys(st.scoreSpread).sort(function (a, b) { return st.scoreSpread[b] - st.scoreSpread[a]; }).slice(0, 8);
     out += '<h3>最終スコアの並び（多い順）</h3><table>' +
@@ -1052,12 +1118,9 @@
       '</table>';
 
     out += '<h3>設定</h3>' + tbl([
-      ['人数', st.config.playerCount],
-      ['初期手札', st.config.handSize],
-      ['勝利点', st.config.winScore],
-      ['コイン', st.config.coins],
-      ['必殺カード複製', st.config.techCopies],
-      ['キャラカード複製', st.config.charCopies],
+      ['人数', st.config.playerCount], ['初期手札', st.config.handSize],
+      ['勝利点', st.config.winScore], ['コイン', st.config.coins],
+      ['必殺カード複製', st.config.techCopies], ['キャラカード複製', st.config.charCopies],
       ['山札総数', st.deckTotal]
     ]);
     out += '<p style="opacity:.6;margin-top:1rem">※ これは判断材料です。数値をどうするかは作者が決めてください。</p>';
@@ -1068,6 +1131,11 @@
    * 起動
    * ============================================================== */
   function boot() {
+    fitStage();
+    global.addEventListener('resize', function () { fitStage(); if (S.game) renderAll(); });
+    global.addEventListener('load', fitStage);
+    requestAnimationFrame(fitStage);
+
     Fx.init($('fx'));
     buildSetup();
 
@@ -1076,8 +1144,6 @@
     $('btnSimRun').addEventListener('click', runSim);
     $('btnSimClose').addEventListener('click', function () { $('simdlg').close(); $('setup').showModal(); });
     $('btnMenu').addEventListener('click', function () { $('setup').showModal(); });
-    $('zoomClose').addEventListener('click', function () { $('zoom').close(); });
-    $('zoom').addEventListener('click', function (e) { if (e.target.id === 'zoom') $('zoom').close(); });
 
     $('btnLog').addEventListener('click', function () {
       var open = $('logpane').hidden;
@@ -1088,7 +1154,6 @@
       $('logpane').hidden = true; $('btnLog').setAttribute('aria-pressed', 'false');
     });
 
-    /* 何もないところをタップしたら選択解除 */
     document.addEventListener('click', function () {
       if (S.sel || S.targeting) { S.sel = null; S.targeting = null; renderAll(); }
     });

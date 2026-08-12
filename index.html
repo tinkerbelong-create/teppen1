@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>テッペンとリーヨ！ ── テストプレイ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,66 +15,66 @@
 </head>
 <body>
 
-<div id="app" class="app" hidden>
+<!-- 盤面。1440x810 を基準に組み、画面サイズに合わせて全体を拡大縮小する -->
+<div id="stage" class="stage" hidden>
 
-  <header class="scoreboard" id="scoreboard">
-    <div class="scoreboard__brand">
-      <span class="brand__bolt" aria-hidden="true">⚡</span>
-      <span class="brand__name">テッペンとリーヨ！</span>
-    </div>
-    <div class="scoreboard__rows" id="scoreRows"></div>
-    <div class="scoreboard__tools">
+  <svg class="stage__lines" viewBox="0 0 1440 810" preserveAspectRatio="none" aria-hidden="true">
+    <g fill="none" stroke="var(--line)" stroke-width="2" opacity=".2">
+      <rect x="16" y="60" width="1408" height="734"/>
+      <line x1="16" y1="427" x2="1424" y2="427"/>
+      <circle cx="720" cy="427" r="118"/>
+      <circle cx="720" cy="427" r="5" fill="var(--line)" stroke="none"/>
+      <rect x="470" y="60" width="500" height="118"/>
+      <rect x="610" y="60" width="220" height="46"/>
+      <rect x="470" y="676" width="500" height="118"/>
+      <rect x="610" y="748" width="220" height="46"/>
+      <path d="M563 178 A118 118 0 0 0 877 178"/>
+      <path d="M563 676 A118 118 0 0 1 877 676"/>
+    </g>
+  </svg>
+
+  <header class="hud">
+    <div class="hud__brand"><span aria-hidden="true">⚡</span>テッペンとリーヨ！</div>
+    <div class="hud__scores" id="scores"></div>
+    <nav class="hud__tools">
+      <a class="tool" id="btnRules" href="あそびかた.html" target="_blank" rel="noopener">あそびかた</a>
       <button type="button" class="tool" id="btnLog" aria-pressed="false">記録</button>
       <button type="button" class="tool" id="btnMenu">設定</button>
-    </div>
+    </nav>
   </header>
 
-  <main class="pitch" id="pitch">
-    <svg class="pitch__lines" viewBox="0 0 400 700" preserveAspectRatio="none" aria-hidden="true">
-      <g fill="none" stroke="var(--line)" stroke-width="2" opacity=".26">
-        <rect x="10" y="10" width="380" height="680"/>
-        <line x1="10" y1="350" x2="390" y2="350"/>
-        <circle cx="200" cy="350" r="70"/>
-        <circle cx="200" cy="350" r="4" fill="var(--line)" stroke="none"/>
-        <rect x="90" y="10" width="220" height="90"/>
-        <rect x="150" y="10" width="100" height="38"/>
-        <rect x="90" y="600" width="220" height="90"/>
-        <rect x="150" y="652" width="100" height="38"/>
-        <path d="M130 100 A70 70 0 0 0 270 100"/>
-        <path d="M130 600 A70 70 0 0 1 270 600"/>
-      </g>
-    </svg>
+  <section class="bench bench--them" id="opponents" aria-label="相手"></section>
 
-    <section class="opponents" id="opponents" aria-label="相手"></section>
+  <section class="fieldrow" aria-label="場">
+    <div class="fieldrow__label">場<small>コイン1枚で拾える</small></div>
+    <div class="piles" id="piles"></div>
+    <div class="counters" id="counters"></div>
+  </section>
 
-    <section class="fieldzone" id="fieldzone">
-      <div class="zone-head">
-        <span class="zone-head__label">場</span>
-        <span class="zone-head__hint" id="fieldHint">コイン1枚で拾える</span>
-      </div>
-      <div class="field" id="field"></div>
-    </section>
+  <section class="bench bench--me" id="mybench" aria-label="自分の選手"></section>
 
-    <section class="me" id="me" aria-label="自分"></section>
-  </main>
-
-  <footer class="handbar">
-    <div class="handbar__meta" id="handMeta"></div>
-    <div class="hand" id="hand" aria-label="手札（伏せて持つカード）"></div>
-  </footer>
+  <section class="handrow" aria-label="手札">
+    <div class="handrow__side" id="handSide"></div>
+    <div class="hand" id="hand"></div>
+  </section>
 
   <div class="banner" id="banner" hidden></div>
 </div>
 
-<!-- 演出レイヤー -->
+<!-- 演出 -->
 <div class="fx" id="fx" aria-hidden="true"></div>
 
-<!-- リアクションなどの選択 -->
+<!-- 選択パネル（リアクション・場の山を開く・拡大） -->
 <div class="chooser" id="chooser" hidden>
   <div class="chooser__panel" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
-    <h2 class="chooser__title" id="chooserTitle"></h2>
-    <p class="chooser__sub" id="chooserSub"></p>
-    <div class="chooser__cards" id="chooserCards"></div>
+    <div class="chooser__head">
+      <h2 class="chooser__title" id="chooserTitle"></h2>
+      <p class="chooser__sub" id="chooserSub"></p>
+    </div>
+    <div class="chooser__body">
+      <div class="chooser__incoming" id="chooserIncoming"></div>
+      <div class="chooser__cards" id="chooserCards"></div>
+    </div>
     <div class="chooser__foot" id="chooserFoot"></div>
   </div>
 </div>
@@ -87,44 +87,50 @@
 
 <!-- 設定 / 開始 -->
 <dialog class="sheet" id="setup">
-  <form method="dialog" class="sheet__inner">
+  <div class="sheet__inner">
     <h1 class="sheet__title"><span>テッペンと</span><em>リーヨ！</em></h1>
     <p class="sheet__lead">紙のカードゲームのテストプレイ用。数値はここで全部いじれます。</p>
 
-    <fieldset class="grp">
-      <legend>人数</legend>
-      <div class="seg" id="segPlayers" role="radiogroup" aria-label="人数"></div>
-      <label class="row"><span>あなたも参加する</span>
-        <input type="checkbox" id="optHuman" checked></label>
-    </fieldset>
+    <div class="sheet__cols">
+      <div>
+        <fieldset class="grp">
+          <legend>人数</legend>
+          <div class="seg" id="segPlayers" role="radiogroup" aria-label="人数"></div>
+          <label class="row"><span>あなたも参加する</span><input type="checkbox" id="optHuman" checked></label>
+        </fieldset>
 
-    <fieldset class="grp">
-      <legend>あなたのキャプテン（円堂守）</legend>
-      <div class="capgrid" id="capGrid"></div>
-    </fieldset>
+        <fieldset class="grp">
+          <legend>あなたのキャプテン（円堂守）</legend>
+          <div class="capgrid" id="capGrid"></div>
+        </fieldset>
+      </div>
 
-    <fieldset class="grp">
-      <legend>数値</legend>
-      <label class="num"><span>初期手札</span><input type="number" id="optHand" min="3" max="20" value="12"><i>枚</i></label>
-      <label class="num"><span>勝利に必要な点</span><input type="number" id="optWin" min="1" max="9" value="3"><i>点</i></label>
-      <label class="num"><span>イナズマコイン</span><input type="number" id="optCoin" min="0" max="80" value="24"><i>枚</i></label>
-      <label class="num"><span>必殺カードの複製数</span><input type="number" id="optTech" min="1" max="6" value="3"><i>枚ずつ</i></label>
-      <label class="num"><span>キャラカードの複製数</span><input type="number" id="optChar" min="1" max="6" value="3"><i>枚ずつ</i></label>
-      <label class="num"><span>演出の速さ</span>
-        <select id="optSpeed">
-          <option value="1">じっくり</option>
-          <option value="0.55" selected>ふつう</option>
-          <option value="0.3">はやい</option>
-          <option value="0">なし（数値だけ見る）</option>
-        </select><i></i></label>
-      <p class="grp__note" id="deckNote"></p>
-    </fieldset>
+      <div>
+        <fieldset class="grp">
+          <legend>数値</legend>
+          <label class="num"><span>初期手札</span><input type="number" id="optHand" min="3" max="24" value="12"><i>枚</i></label>
+          <label class="num"><span>勝利に必要な点</span><input type="number" id="optWin" min="1" max="9" value="3"><i>点</i></label>
+          <label class="num"><span>イナズマコイン</span><input type="number" id="optCoin" min="0" max="80" value="24"><i>枚</i></label>
+          <label class="num"><span>必殺カードの複製数</span><input type="number" id="optTech" min="1" max="6" value="3"><i>枚ずつ</i></label>
+          <label class="num"><span>キャラカードの複製数</span><input type="number" id="optChar" min="1" max="6" value="3"><i>枚ずつ</i></label>
+          <label class="num"><span>演出の速さ</span>
+            <select id="optSpeed">
+              <option value="1">じっくり</option>
+              <option value="0.55" selected>ふつう</option>
+              <option value="0.3">はやい</option>
+              <option value="0">なし（数値だけ見る）</option>
+            </select><i></i></label>
+          <p class="grp__note" id="deckNote"></p>
+        </fieldset>
+      </div>
+    </div>
 
     <div class="sheet__actions">
       <button type="button" class="btn btn--go" id="btnStart">キックオフ</button>
       <button type="button" class="btn btn--sub" id="btnSim">CPU同士で回す</button>
+      <a class="btn btn--sub" href="あそびかた.html" target="_blank" rel="noopener">あそびかたを読む</a>
     </div>
-  </form>
+  </div>
 </dialog>
 
 <!-- 一括対戦 -->
@@ -142,12 +148,7 @@
   </div>
 </dialog>
 
-<!-- カード拡大 -->
-<dialog class="zoom" id="zoom">
-  <div class="zoom__inner" id="zoomInner"></div>
-  <button type="button" class="zoom__close" id="zoomClose">閉じる</button>
-</dialog>
-
+<script src="js/config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ai.js"></script>
