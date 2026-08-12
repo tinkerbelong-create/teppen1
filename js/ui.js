@@ -156,7 +156,16 @@
     Fx.clear();
     renderAll();
     S.running = true;
-    E.run(g).then(function () { S.running = false; showFinish(g); });
+    E.run(g).then(function () { S.running = false; showFinish(g); },
+      function (err) {
+        /* 進行が止まったら黙って固まらせない。何が起きたか出して、やり直せるようにする */
+        S.running = false;
+        console.error(err);
+        Fx.finish('<div class="finish__word">試合が止まりました</div>' +
+          '<div class="finish__sub">' + (err && err.message ? err.message : err) +
+          '<br>この文言を作者に伝えてください（' + g.turnCount + '手目）</div>',
+          function () { $('setup').showModal(); });
+      });
   }
 
   /* ================================================================
