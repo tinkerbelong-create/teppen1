@@ -92,42 +92,45 @@
       eff: { steal: 1 }, efftxt: '決まったら、相手の伏せ手札から1枚を奪う',
       img: '必殺技シュート/ゴッドノウズ　アフロディ.png' },
 
+    /* --- 2人技：ぜんぶ「資源が増える」方向にそろえた --- */
     { name: 'イナズマ落とし', type: 'シュート', main: '豪炎寺', req: ['壁山'], dice: null,
-      eff: { draw: 1 }, efftxt: '決まったら、山札から1枚引く',
+      eff: { draw: 2 }, efftxt: '決まったら、山札から2枚引く',
       img: '必殺技シュート/イナズマ落とし　豪炎寺（壁山）.png' },
     { name: 'メガネクラッシュ', type: 'シュート', main: 'メガネ', req: ['染岡'], dice: null,
-      eff: { scout: 1 }, efftxt: '決まったら、場から1枚を無料でスカウト',
+      eff: { scout: 1, coin: 1 }, efftxt: '決まったら、場から1枚を無料で拾い、コインを1個もらう',
       img: '必殺技シュート/メガネクラッシュ　メガネ（染岡）｛画像に名前なし｝.png' },
     { name: 'ドラゴントルネード', type: 'シュート', main: '染岡', req: ['豪炎寺'], dice: null,
-      eff: { steal: 1 }, efftxt: '決まったら、相手の伏せ手札から1枚を奪う',
+      eff: { steal: 1, coin: 1 }, efftxt: '決まったら、相手の伏せ手札から1枚を奪い、コインを1個もらう',
       img: '必殺技シュート/ドラゴントルネード　染岡（豪炎寺）.png' },
     { name: 'ツインブースト', type: 'シュート', main: '鬼道（帝国）', req: ['佐久間'], dice: null,
-      eff: { fieldToDeck: 1 }, efftxt: '決まったら、場のカードを1枚山札に戻す',
+      eff: { fieldToDeck: 1, scout: 1 }, efftxt: '決まったら、場から1枚を山札に戻し、場から1枚を無料で拾う',
       img: '必殺技シュート/ツインブースト　鬼道（佐久間）.png' },
     { name: '炎の風見鶏', type: 'シュート', main: '豪炎寺', req: ['風丸'], dice: null,
       eff: { returnToHand: true }, efftxt: '決まったら、このカードは場に出ず手札に戻る',
       img: '必殺技シュート/炎の風見鶏　豪炎寺（風丸）.png' },
 
+    /* --- 3人技：ぜんぶ「試合の流れを変える」方向にそろえた --- */
     { name: 'トライアングルZ', type: 'シュート', main: '友', req: ['勝', '努'], dice: null,
-      eff: { draw: 2 }, efftxt: '決まったら、山札から2枚引く',
+      eff: { draw: 3, coin: 2 }, efftxt: '決まったら、山札から3枚引き、コインを2個もらう',
       img: '必殺技シュート/トライアングルZ　友（勝・努）.png' },
     { name: 'デスゾーン', type: 'シュート', main: '佐久間', req: ['寺門', '洞面'], dice: null,
-      eff: { pierce: true }, efftxt: '素手キャッチでは止められない',
+      eff: { pierce: true, raidFree: 1 }, efftxt: '決まったら、相手の選手を1人ただで引き抜く（キャプテンを除く）',
       img: '必殺技シュート/デスゾーン　佐久間（寺門・洞面）.png' },
     { name: '皇帝ペンギン２号', type: 'シュート', main: '鬼道（帝国）', req: ['佐久間', '寺門'], dice: null,
-      eff: { pierce: true }, efftxt: '素手キャッチでは止められない',
+      eff: { pierce: true, coin: 3 }, efftxt: '決まったら、コインを3個もらう',
       img: '必殺技シュート/皇帝ペンギン２号　鬼道（佐久間・寺門）.png' },
     { name: 'イナズマ１号落とし', type: 'シュート', main: '豪炎寺', req: ['円堂', '壁山'], dice: null,
-      eff: { pierce: true }, efftxt: '素手キャッチでは止められない',
+      eff: { pierce: true, dig: 3 }, efftxt: '決まったら、山札の上3枚を見て1枚を手札に、残りは場に出す',
       img: '必殺技シュート/イナズマ１号落とし　豪炎寺（円堂・壁山）｛画像に名前なし｝.png' },
     { name: 'ザ・フェニックス', type: 'シュート', main: '一之瀬', req: ['土門', '円堂'], dice: null,
-      eff: { pierce: true, steal: 1 }, efftxt: '決まったら、相手の伏せ手札から1枚を奪う',
+      eff: { pierce: true, steal: 2 }, efftxt: '決まったら、相手の伏せ手札から2枚を奪う',
       img: '必殺技シュート/ザ・フェニックス　一之瀬（土門・円堂）.png' },
     { name: 'トライペガサス', type: 'シュート', main: '一之瀬', req: ['土門', '円堂'], dice: null,
-      eff: { pierce: true, draw: 2 }, efftxt: '決まったら、山札から2枚引く',
+      eff: { pierce: true, draw: 3 }, efftxt: '決まったら、山札から3枚引く',
       img: '必殺技シュート/トライペガサス　一之瀬（土門・円堂）.png' },
     { name: 'イナズマブレイク', type: 'シュート', main: '鬼道（雷門）', req: ['豪炎寺', '円堂'], dice: null,
-      eff: { pierce: true, keepBall: true }, efftxt: '決まっても、ボールは相手に渡らない',
+      eff: { pierce: true, keepBall: true, extraTurn: true },
+      efftxt: '決まっても、ボールは相手に渡らない。さらにもう一度、自分の手番',
       img: '必殺技シュート/イナズマブレイク　鬼道（豪炎寺・円堂）｛画像に名前なし｝.png' },
 
     /* ---- ドリブル 4（効果なし。強さは出目だけ） ---- */
@@ -205,9 +208,36 @@
   var techByName = {};
   techs.forEach(function (t) { techByName[t.name] = t; });
 
+  /* ------------------------------------------------------------------
+   * 収録するキャラクターの絞り込み
+   *
+   * 'full' … 24人（これまでどおり）
+   * 'v2'   … 18人。1人技しか持たないキャラと、他の技に乗るだけのキャラを外した。
+   *          外すと、その人が主のワザも一緒に消える。
+   * ---------------------------------------------------------------- */
+  var ROSTER_OUT = {
+    v2: ['マックス', 'メガネ', 'ヘラ', '友', '勝', '努'],   /* 18人 */
+    v2b: ['マックス', 'メガネ', 'ヘラ']                     /* 21人。木戸川の三兄弟を残す案 */
+  };
+
+  function rosterFor(name) {
+    var out = ROSTER_OUT[name];
+    if (!out) return { chars: deckChars, techs: techs };
+    var gone = {};
+    out.forEach(function (b) { gone[b] = true; });
+    var cs = deckChars.filter(function (c) { return !gone[c.base]; });
+    var ts = techs.filter(function (t) {
+      if (gone[t.main]) return false;                              /* 使い手がいない */
+      return !t.req.some(function (r) { return gone[r]; });        /* 相方がいない */
+    });
+    return { chars: cs, techs: ts };
+  }
+
   NS.DATA = {
     captains: captains,
     deckChars: deckChars,
+    rosterFor: rosterFor,
+    rosterNames: ['full', 'v2'],
     charByBase: charByBase,
     techs: techs,
     techByName: techByName,

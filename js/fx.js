@@ -170,6 +170,74 @@
     root.style.pointerEvents = 'none';
   }
 
+  /* ---------------- 守り切った瞬間 ----------------
+   * 「リアクションしても報われない」と言われた部分。
+   * 成功した瞬間に画面を止めて、大きく出す。 */
+  async function reaction(word, jp, who, kind) {
+    if (speed === 0) return;
+    busy();
+    var w = R.el('div', 'react react--' + kind);
+    w.appendChild(R.el('div', 'react__flash'));
+    var box = R.el('div', 'react__box');
+    box.appendChild(R.el('div', 'react__word', word));
+    box.appendChild(R.el('div', 'react__jp', jp));
+    box.appendChild(R.el('div', 'react__who', who));
+    w.appendChild(box);
+    root.appendChild(w);
+    await hold(1100);
+    w.remove();
+    root.style.pointerEvents = 'none';
+  }
+
+  /* ---------------- 手番が自分に来た ----------------
+   * 「間の人を飛ばした」ことが分からない、という指摘への対応。 */
+  async function takeover(msg, streak) {
+    if (speed === 0) return;
+    busy();
+    var w = R.el('div', 'takeover');
+    var b = R.el('div', 'takeover__box');
+    if (streak >= 2) b.appendChild(R.el('div', 'takeover__streak', streak + ' 連続！'));
+    b.appendChild(R.el('div', 'takeover__msg', msg));
+    b.appendChild(R.el('div', 'takeover__sub', 'このまま攻め返せる'));
+    w.appendChild(b);
+    root.appendChild(w);
+    await hold(1200);
+    w.remove();
+    root.style.pointerEvents = 'none';
+  }
+
+  /* ---------------- コインが飛ぶ ---------------- */
+  async function coin(n, total, fromRect, toRect, isMine) {
+    if (speed === 0 || n <= 0) return;
+    var count = Math.min(n, 5);
+    var jobs = [];
+    for (var i = 0; i < count; i++) {
+      var c = R.el('div', 'flycoin', '⚡');
+      var src = fromRect || { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+      c.style.left = (src.left + src.width / 2 - 14) + 'px';
+      c.style.top = (src.top + src.height / 2 - 14) + 'px';
+      root.appendChild(c);
+      if (toRect) {
+        var dx = (toRect.left + toRect.width / 2) - (src.left + src.width / 2);
+        var dy = (toRect.top + toRect.height / 2) - (src.top + src.height / 2);
+        var a = c.animate(
+          [{ translate: '0 0', scale: .4, opacity: 0 },
+           { translate: (dx * .4) + 'px ' + (dy * .4 - 40) + 'px', scale: 1.2, opacity: 1, offset: .45 },
+           { translate: dx + 'px ' + dy + 'px', scale: .7, opacity: .2 }],
+          { duration: 620 * speed, delay: i * 90 * speed, easing: 'cubic-bezier(.16,.94,.16,1)' }
+        );
+        jobs.push(settle(a, c, 620 * speed + i * 90 * speed));
+      } else { c.remove(); }
+    }
+    var label = R.el('div', 'coingain' + (isMine ? ' is-mine' : ''));
+    label.appendChild(R.el('span', 'coingain__n', '＋' + n));
+    label.appendChild(R.el('span', 'coingain__cap', 'イナズマコイン（' + total + '個）'));
+    root.appendChild(label);
+    await Promise.all(jobs);
+    await hold(320);
+    label.remove();
+  }
+
   /* ---------------- 一言 ---------------- */
   async function toast(text, ms) {
     if (speed === 0) return;
@@ -248,6 +316,7 @@
     init: init, setSpeed: setSpeed, getSpeed: function () { return speed; },
     hold: hold, clear: clear,
     cutin: cutin, dice: dice, goal: goal, toast: toast,
+    reaction: reaction, takeover: takeover, coin: coin,
     flyCard: flyCard, flyBall: flyBall, finish: finish
   };
 

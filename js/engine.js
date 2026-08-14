@@ -36,7 +36,8 @@
     for (var k in proto) if (Object.prototype.hasOwnProperty.call(proto, k)) c[k] = proto[k];
     return c;
   }
-  var COIN_PROTO = { kind: 'coin', name: 'イナズマコイン' };
+  /* イナズマコインはカードではなくトークン（各プレイヤーの持ち物）。
+   * ボールはカードのまま。配るときに1枚だけ手札に混ざる。 */
   var BALL_PROTO = { kind: 'ball', name: 'ボールカード' };
 
   /* ---------------- 所持判定 ---------------- */
@@ -83,11 +84,24 @@
     return team;
   }
 
-  function countCoins(g, pi) {
-    return g.players[pi].hand.filter(function (c) { return c.kind === 'coin'; }).length;
-  }
+  function countCoins(g, pi) { return g.players[pi].coins; }
+
+  /* コインがトークンになったので、伏せているのは必殺カードだけになった */
   function hiddenHand(g, pi) {
-    return g.players[pi].hand.filter(function (c) { return c.kind === 'tech' || c.kind === 'coin'; });
+    return g.players[pi].hand.filter(function (c) { return c.kind === 'tech'; });
+  }
+
+  /* コインの増減はここ1か所を通す。上限を超えたぶんは捨てる。 */
+  function addCoins(g, pi, n, why) {
+    if (!n) return 0;
+    var p = g.players[pi];
+    var cap = g.settings.coin.cap;
+    var before = p.coins;
+    p.coins = Math.max(0, Math.min(cap, p.coins + n));
+    var d = p.coins - before;
+    if (d > 0) g.coinsEarned += d;
+    if (d < 0) g.coinsSpent -= d;
+    return d;
   }
   function handChars(g, pi) {
     return g.players[pi].hand.filter(function (c) { return c.kind === 'char'; });
@@ -254,6 +268,26 @@
 
   function rollDie(g) { return 1 + Math.floor(g.rng() * 6); }
 
+  /* リアクションに成功したときの見返り。
+   * 「守り切った → 一気に攻め返す」の燃料になる部分。
+   * 同じ攻防のなかで守り続けるほど、もらえるコインが増える。 */
+  async function reactionReward(g, pi, kind) {
+    var c = g.settings.coin;
+    g.reactStreak = (g.reactStreakBy === pi) ? g.reactStreak + 1 : 1;
+    g.reactStreakBy = pi;
+
+    var coins = c.onReact + (g.reactStreak - 1) * c.onReactStreak;
+    var got = addCoins(g, pi, coins);
+    if (got) await fire(g, { k: 'coin', p: pi, n: got, why: 'react', total: g.players[pi].coins, streak: g.reactStreak });
+
+    if (c.reactDraw) {
+      var d = drawCards(g, pi, c.reactDraw);
+      if (d.length) await fire(g, { k: 'draw', p: pi, n: d.length, cards: d, why: 'react' });
+    }
+    await fire(g, { k: 'streak', p: pi, n: g.reactStreak, of: kind });
+  }
+  function breakStreak(g) { g.reactStreak = 0; g.reactStreakBy = -1; }
+
   /* ===== シュートの解決 ===== */
   async function resolveShoot(g, pi, techCard, team, target) {
     var p = g.players[pi];
@@ -311,6 +345,7 @@
         techToDeck: techCard, catchToField: usedCard
       });
       await fire(g, { k: 'ball', to: target, why: 'catch' });
+      await reactionReward(g, target, 'catch');
     } else {
       /* キャッチ失敗：キャッチカードは山札へ、シュートは場へ（得点処理の中で） */
       if (usedCard) toDeck(g, usedCard);
@@ -339,15 +374,45 @@
       var got = drawCards(g, scorer, eff.draw);
       await fire(g, { k: 'draw', p: scorer, n: got.length, cards: got, why: 'effect' });
     }
+    if (eff.coin) {
+      var cg = addCoins(g, scorer, eff.coin);
+      if (cg) await fire(g, { k: 'coin', p: scorer, n: cg, why: 'effect', total: g.players[scorer].coins });
+    }
     if (eff.steal) {
-      var pool = hiddenHand(g, conceder);
-      if (pool.length) {
+      for (var s = 0; s < eff.steal; s++) {
+        var pool = hiddenHand(g, conceder);
+        if (!pool.length) { await fire(g, { k: 'stealFail', p: scorer, from: conceder }); break; }
         var taken = pool[Math.floor(g.rng() * pool.length)];
         removeFromHand(g, conceder, taken);
         g.players[scorer].hand.push(taken);
         await fire(g, { k: 'steal', p: scorer, from: conceder, card: taken });
-      } else {
-        await fire(g, { k: 'stealFail', p: scorer, from: conceder });
+      }
+    }
+    /* 山札の上を掘る：3枚見て1枚を手札に、残りは場へ。
+     * 自分だけが得をしないよう、残りは全員が拾える場に落ちる。 */
+    if (eff.dig) {
+      var dug = [];
+      for (var q = 0; q < eff.dig && g.deck.length; q++) dug.push(g.deck.pop());
+      if (!g.deck.length) g.timeUp = true;
+      if (dug.length) {
+        await fire(g, { k: 'digReveal', p: scorer, cards: dug.slice() });
+        var keep = await ask(g, scorer, { kind: 'pickField', options: dug.slice(), purpose: 'dig' });
+        if (!keep) keep = dug[0];
+        g.players[scorer].hand.push(keep);
+        dug.forEach(function (c) { if (c !== keep) toField(g, c); });
+        await fire(g, { k: 'dig', p: scorer, kept: keep, toField: dug.filter(function (c) { return c !== keep; }) });
+      }
+    }
+    /* ただで引き抜く：相手の公開キャラを1人もらう（キャプテンは対象外） */
+    if (eff.raidFree) {
+      for (var r = 0; r < eff.raidFree; r++) {
+        var cands = handChars(g, conceder);
+        if (!cands.length) break;
+        var pick3 = await ask(g, scorer, { kind: 'pickField', options: cands.slice(), purpose: 'raid' });
+        if (!pick3) pick3 = cands[0];
+        removeFromHand(g, conceder, pick3);
+        g.players[scorer].hand.push(pick3);
+        await fire(g, { k: 'raid', p: scorer, from: conceder, card: pick3, coins: 0, free: true });
       }
     }
     if (eff.scout && g.field.length) {
@@ -394,7 +459,15 @@
     }
     var d = drawCards(g, conceder, 1);
     await fire(g, { k: 'draw', p: conceder, n: d.length, cards: d, why: 'concede' });
-    g.forcedNext = conceder;
+
+    /* 失点した側にはコインも入る。守る手段がない人ほど資金が貯まる */
+    var cc = addCoins(g, conceder, g.settings.coin.onConcede);
+    if (cc) await fire(g, { k: 'coin', p: conceder, n: cc, why: 'concede', total: g.players[conceder].coins });
+
+    /* 追加手番（イナズマブレイクだけ）。失点した側の手番より優先する */
+    g.forcedNext = eff.extraTurn ? scorer : conceder;
+    if (eff.extraTurn) await fire(g, { k: 'extraTurn', p: scorer });
+    breakStreak(g);
   }
 
   /* ===== ディフェンスの解決 ===== */
@@ -436,6 +509,7 @@
         k: 'dribbleResult', p: target, ok: true,
         dribbleToField: dribCard, defenseToDeck: techCard
       });
+      await reactionReward(g, target, 'dribble');
     } else {
       /* 振り切れず：ドリブルは山札へ（負け）、ディフェンスは場へ（勝ち） */
       toDeck(g, dribCard);
@@ -496,6 +570,8 @@
       await fire(g, { k: 'play', p: pi, card: card });
       var got = drawCards(g, pi, 1);
       await fire(g, { k: 'draw', p: pi, n: got.length, cards: got, why: 'action' });
+      var cp = addCoins(g, pi, g.settings.coin.onPlay);
+      if (cp) await fire(g, { k: 'coin', p: pi, n: cp, why: 'play', total: g.players[pi].coins });
 
     } else if (mv.t === 'shoot') {
       var sc = findCard(g, pi, mv.uid) || mv.card;
@@ -506,8 +582,7 @@
       await resolveDefense(g, pi, dc, assembleTeam(g, pi, dc), g.ball);
 
     } else if (mv.t === 'scoutField') {
-      var coin = g.players[pi].hand.filter(function (c) { return c.kind === 'coin'; })[0];
-      removeFromHand(g, pi, coin); toDiscard(g, coin);
+      addCoins(g, pi, -1);
       var i = -1;
       for (var q = 0; q < g.field.length; q++) if (g.field[q].uid === mv.uid) { i = q; break; }
       if (i < 0) i = 0;
@@ -516,9 +591,7 @@
       await fire(g, { k: 'scout', p: pi, card: taken, free: false, coins: 1 });
 
     } else if (mv.t === 'scoutPlayer') {
-      var cs = g.players[pi].hand.filter(function (c) { return c.kind === 'coin'; });
-      removeFromHand(g, pi, cs[0]); toDiscard(g, cs[0]);
-      removeFromHand(g, pi, cs[1]); toDiscard(g, cs[1]);
+      addCoins(g, pi, -2);
       var vic = findCard(g, mv.target, mv.uid);
       if (vic) {
         removeFromHand(g, mv.target, vic);
@@ -550,25 +623,45 @@
   }
 
   /* ---------------- 準備 ---------------- */
+  /* コインの既定値。設定で上書きできる */
+  var COIN_DEFAULT = {
+    start: 5,           /* ゲーム開始時に配るコイン */
+    onReact: 2,         /* リアクション成功で もらえるコイン */
+    onReactStreak: 1,   /* 連続で成功するたび、もらえる量が増える */
+    onConcede: 1,       /* 失点した人がもらえるコイン */
+    onPlay: 0,          /* 手番A（場に出して1枚引く）でもらえるコイン */
+    reactDraw: 1,       /* リアクション成功で引ける枚数 */
+    cap: 12             /* 手持ちの上限 */
+  };
+
   function createGame(settings, agents, emitFn) {
     var rng = makeRng(settings.seed || (Math.random() * 1e9) | 0);
     var n = settings.players.length;
 
+    /* コイン設定を既定値で埋める */
+    var coin = {};
+    for (var ck in COIN_DEFAULT) coin[ck] = COIN_DEFAULT[ck];
+    if (settings.coin) for (var ck2 in settings.coin) coin[ck2] = settings.coin[ck2];
+    settings.coin = coin;
+
+    var roster = DATA.rosterFor(settings.roster || 'full');
+
     var g = {
       settings: settings, rng: rng, agents: agents, emit: emitFn || null,
+      roster: roster,
       deck: [], field: [], discard: [],
       players: [], ball: 0, turn: 0, turnCount: 0,
       forcedNext: null, over: false, winner: null, endReason: null,
-      timeUp: false, goalOrder: [], history: []
+      timeUp: false, goalOrder: [], history: [],
+      coinsEarned: 0, coinsSpent: 0, reactStreak: 0, reactStreakBy: -1
     };
 
-    /* 山札 */
+    /* 山札。コインはトークンになったので、山札はキャラと必殺カードとボールだけ */
     var i, j;
-    for (i = 0; i < DATA.deckChars.length; i++)
-      for (j = 0; j < settings.charCopies; j++) g.deck.push(inst(DATA.deckChars[i]));
-    for (i = 0; i < DATA.techs.length; i++)
-      for (j = 0; j < settings.techCopies; j++) g.deck.push(inst(DATA.techs[i]));
-    for (i = 0; i < settings.coins; i++) g.deck.push(inst(COIN_PROTO));
+    for (i = 0; i < roster.chars.length; i++)
+      for (j = 0; j < settings.charCopies; j++) g.deck.push(inst(roster.chars[i]));
+    for (i = 0; i < roster.techs.length; i++)
+      for (j = 0; j < settings.techCopies; j++) g.deck.push(inst(roster.techs[i]));
     shuffle(g.deck, rng);
 
     /* プレイヤーとキャプテン */
@@ -577,8 +670,9 @@
       g.players.push({
         id: i, name: ps.name, cpu: !!ps.cpu,
         captain: inst(DATA.captains[ps.captain - 1]),
-        hand: [], score: 0, goals: []
+        hand: [], score: 0, goals: [], coins: coin.start
       });
+      g.coinsEarned += coin.start;
     }
 
     /* 手札を配る */
@@ -632,10 +726,11 @@
     handChars: handChars,
     hiddenHand: hiddenHand,
     countCoins: countCoins,
+    addCoins: addCoins,
     makeRng: makeRng,
     shuffle: shuffle,
     inst: inst,
-    COIN_PROTO: COIN_PROTO,
+    COIN_DEFAULT: COIN_DEFAULT,
     BALL_PROTO: BALL_PROTO
   };
 

@@ -20,11 +20,15 @@
   function effBonus(tech) {
     var e = tech.eff, v = 0;
     if (e.draw) v += e.draw * 1.5;
-    if (e.steal) v += 2;
+    if (e.steal) v += e.steal * 2;
     if (e.scout) v += 2;
     if (e.fieldToDeck) v += 1;
     if (e.returnToHand) v += 4;
     if (e.keepBall) v += 3;
+    if (e.coin) v += e.coin * 1.6;
+    if (e.dig) v += 3;
+    if (e.raidFree) v += e.raidFree * 6;   /* 相手のエースをただで取れる。効果としては最上位 */
+    if (e.extraTurn) v += 6;
     return v;
   }
 
@@ -53,7 +57,6 @@
   /* 手札のカード1枚の価値（捨てる順番を決めるのに使う） */
   function cardValue(g, pi, card) {
     var i, t, v;
-    if (card.kind === 'coin') return 6;
     if (card.kind === 'ball') return 999;
 
     if (card.kind === 'char') {
@@ -218,8 +221,8 @@
     if (g.players[req.from].score === g.settings.winScore - 1) {
       return p(bestTech) >= p(bestBare) ? bestTech : bestBare;
     }
-    /* ふだんは「差が大きいときだけカードを賭ける」 */
-    return (p(bestTech) - p(bestBare) >= 0.3) ? bestTech : bestBare;
+    /* 成功すればコインと1ドローがもらえるので、以前より賭けに出る価値がある */
+    return (p(bestTech) - p(bestBare) >= 0.2) ? bestTech : bestBare;
   }
 
   function chooseDribble(g, pi, req) {
@@ -233,6 +236,10 @@
     var opts = req.options;
     if (!opts.length) return null;
     var scored = opts.map(function (c) {
+      if (req.purpose === 'raid') {
+        /* 相手から引き抜くなら、自分の連携が完成する選手を最優先 */
+        return { c: c, v: pickupValue(g, pi, c) };
+      }
       if (req.purpose === 'toDeck') {
         /* 相手にとっていちばん価値がありそうなカードを消す */
         var worst = 0;

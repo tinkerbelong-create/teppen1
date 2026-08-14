@@ -107,12 +107,28 @@
 
       <div>
         <fieldset class="grp">
-          <legend>数値</legend>
-          <label class="num"><span>初期手札</span><input type="number" id="optHand" min="3" max="24" value="12"><i>枚</i></label>
+          <legend>カードの数</legend>
+          <label class="num"><span>収録するキャラ</span>
+            <select id="optRoster">
+              <option value="v2" selected>18人（推奨）</option>
+              <option value="v2b">21人（木戸川の三兄弟あり）</option>
+              <option value="full">24人（全員）</option>
+            </select><i></i></label>
+          <label class="num"><span>初期手札</span><input type="number" id="optHand" min="3" max="24" value="14"><i>枚</i></label>
           <label class="num"><span>勝利に必要な点</span><input type="number" id="optWin" min="1" max="9" value="3"><i>点</i></label>
-          <label class="num"><span>イナズマコイン</span><input type="number" id="optCoin" min="0" max="80" value="24"><i>枚</i></label>
-          <label class="num"><span>必殺カードの複製数</span><input type="number" id="optTech" min="1" max="6" value="3"><i>枚ずつ</i></label>
+          <label class="num"><span>必殺カードの複製数</span><input type="number" id="optTech" min="1" max="6" value="2"><i>枚ずつ</i></label>
           <label class="num"><span>キャラカードの複製数</span><input type="number" id="optChar" min="1" max="6" value="3"><i>枚ずつ</i></label>
+          <p class="grp__note" id="deckNote"></p>
+        </fieldset>
+
+        <fieldset class="grp">
+          <legend>イナズマコイン（トークン）</legend>
+          <label class="num"><span>開始時に配る</span><input type="number" id="optCoinStart" min="0" max="20" value="5"><i>個</i></label>
+          <label class="num"><span>リアクション成功で</span><input type="number" id="optCoinReact" min="0" max="10" value="2"><i>個</i></label>
+          <label class="num"><span>連続成功のたび追加で</span><input type="number" id="optCoinStreak" min="0" max="5" value="1"><i>個ずつ</i></label>
+          <label class="num"><span>失点で</span><input type="number" id="optCoinConcede" min="0" max="10" value="1"><i>個</i></label>
+          <label class="num"><span>手番Aで</span><input type="number" id="optCoinPlay" min="0" max="5" value="0"><i>個</i></label>
+          <label class="num"><span>持てる上限</span><input type="number" id="optCoinCap" min="1" max="40" value="12"><i>個</i></label>
           <label class="num"><span>演出の速さ</span>
             <select id="optSpeed">
               <option value="1">じっくり</option>
@@ -120,7 +136,6 @@
               <option value="0.3">はやい</option>
               <option value="0">なし（数値だけ見る）</option>
             </select><i></i></label>
-          <p class="grp__note" id="deckNote"></p>
         </fieldset>
       </div>
     </div>

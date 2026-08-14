@@ -28,17 +28,37 @@
      * 画像を差し替えて顔がずれたら、data.js の face の数値だけ直してください。 */
     face: { zoom: 125, x: 50, y: 0 },
 
-    /* 数値の初期値（画面の設定からいつでも変えられます） */
+    /* 数値の初期値（画面の設定からいつでも変えられます）
+     * この組み合わせは、CPU一括対戦で 2人/3人/4人 それぞれ200試合ずつ回して決めました。
+     * 3人戦で決着94%、1試合48手、連携技が全シュートの51%。 */
     defaults: {
       playerCount: 3,
       humanPlays: true,
       captain: 1,
-      handSize: 12,
+      handSize: 14,
       winScore: 3,
-      coins: 24,
-      techCopies: 3,
-      charCopies: 3,
+      techCopies: 2,      /* 必殺カードは1種類あたり2枚 */
+      charCopies: 3,      /* キャラカードは1種類あたり3枚 */
+      roster: 'v2',       /* 収録キャラ。'v2'=18人 / 'v2b'=21人 / 'full'=24人 */
       speed: 0.55
+    },
+
+    /* イナズマコイン（カードではなくトークン）
+     *   start        … ゲーム開始時に配る個数
+     *   onReact      … キャッチ／ドリブルに成功したときにもらえる個数
+     *   onReactStreak… 連続で成功するたび、もらえる個数がこれだけ増える
+     *   onConcede    … 失点した人がもらえる個数
+     *   onPlay       … 手番A（場に出して1枚引く）でもらえる個数
+     *   reactDraw    … リアクション成功で引ける枚数
+     *   cap          … 手持ちの上限 */
+    coin: {
+      start: 5,
+      onReact: 2,
+      onReactStreak: 1,
+      onConcede: 1,
+      onPlay: 0,
+      reactDraw: 1,
+      cap: 12
     },
 
     /* 遊ぶ人向けルールブックの場所 */

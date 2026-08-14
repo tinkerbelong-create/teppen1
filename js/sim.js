@@ -32,7 +32,11 @@
       lostToDeck: 0,          /* 撃ち合いに負けて山札へ消えた必殺カードの枚数 */
       kazamidori: 0,          /* 炎の風見鶏が手札に戻った回数 */
       seats: 0, neverBall: 0, neverShot: 0, topShare: 0, topShareN: 0,
-      deckLeft: 0
+      deckLeft: 0,
+      shootBy: [0, 0, 0, 0],   /* 何人技のシュートを撃ったか（1〜3人） */
+      goalBy: [0, 0, 0, 0],
+      coinsEarned: 0, coinsSpent: 0, coinsLeft: 0,
+      streakMax: 0, streak2: 0, extraTurns: 0, reactWins: 0
     };
   }
 
@@ -82,7 +86,10 @@
     var tot = counts.reduce(function (a, b) { return a + b; }, 0);
     if (tot) { st.topShare += counts[0] / tot; st.topShareN++; }
 
-    var n = g.players.length, last = -1, lastPierce = false;
+    g.players.forEach(function (p) { st.coinsLeft += p.coins; });
+    st.coinsSpent += g.coinsSpent || 0;
+
+    var n = g.players.length, last = -1, lastPierce = false, lastCombo = 1;
     g.history.forEach(function (ev) {
       switch (ev.k) {
         case 'turnStart':
@@ -91,8 +98,17 @@
           break;
         case 'shootDeclare':
           st.shoots++;
+          st.shootBy[Math.min(3, ev.tech.combo)]++;
+          lastCombo = Math.min(3, ev.tech.combo);
           lastPierce = !!ev.pierce;
           if (ev.pierce) { st.shootPierce++; st.pierceShoots++; } else st.plainShoots++;
+          break;
+        case 'coin': st.coinsEarned += ev.n; break;
+        case 'extraTurn': st.extraTurns++; break;
+        case 'streak':
+          st.reactWins++;
+          if (ev.n > st.streakMax) st.streakMax = ev.n;
+          if (ev.n >= 2) st.streak2++;
           break;
         case 'noCatch':
           st.noCatchPossible++;
@@ -122,6 +138,7 @@
           break;
         case 'goal':
           st.goalByTech[ev.tech.name] = (st.goalByTech[ev.tech.name] || 0) + 1;
+          st.goalBy[lastCombo]++;
           if (lastPierce) st.pierceGoals++; else st.plainGoals++;
           break;
         case 'returnToHand': st.kazamidori++; break;
@@ -148,9 +165,10 @@
       players: players,
       handSize: base.handSize,
       winScore: base.winScore,
-      coins: base.coins,
       techCopies: base.techCopies,
       charCopies: base.charCopies,
+      roster: base.roster || 'full',
+      coin: base.coin || null,
       seed: seed
     };
   }
@@ -160,7 +178,8 @@
     var st = blankStats();
     st.config = {
       playerCount: base.playerCount, handSize: base.handSize, winScore: base.winScore,
-      coins: base.coins, techCopies: base.techCopies, charCopies: base.charCopies
+      techCopies: base.techCopies, charCopies: base.charCopies,
+      roster: base.roster || 'full', coin: base.coin || null
     };
     var baseSeed = (Math.random() * 1e9) | 0;
     for (var i = 0; i < n; i++) {
@@ -168,7 +187,9 @@
       var agents = [];
       for (var j = 0; j < base.playerCount; j++) agents.push(NS.AI.makeAgent());
       var g = E.createGame(s, agents, null);
-      st.deckTotal = g.deck.length + base.playerCount * base.handSize;
+      st.charKinds = g.roster.chars.length;
+      st.techKinds = g.roster.techs.length;
+      st.deckTotal = st.charKinds * base.charCopies + st.techKinds * base.techCopies + 1;
       await E.run(g);
       collect(g, st);
       if ((i % 20) === 19) {

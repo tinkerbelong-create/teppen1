@@ -77,10 +77,20 @@
       cg.appendChild(b);
     });
 
-    ['optHand', 'optWin', 'optCoin', 'optTech', 'optChar'].forEach(function (id) {
-      $(id).addEventListener('input', syncSetup);
-    });
+    ['optHand', 'optWin', 'optTech', 'optChar',
+      'optCoinStart', 'optCoinReact', 'optCoinStreak', 'optCoinConcede', 'optCoinPlay', 'optCoinCap'
+    ].forEach(function (id) { $(id).addEventListener('input', syncSetup); });
+    $('optRoster').addEventListener('change', syncSetup);
     $('optHuman').addEventListener('change', syncSetup);
+
+    /* config.js の既定値を画面に流し込む */
+    var d = CFG.defaults, c = CFG.coin;
+    $('optHand').value = d.handSize; $('optWin').value = d.winScore;
+    $('optTech').value = d.techCopies; $('optChar').value = d.charCopies;
+    $('optRoster').value = d.roster;
+    $('optCoinStart').value = c.start; $('optCoinReact').value = c.onReact;
+    $('optCoinStreak').value = c.onReactStreak; $('optCoinConcede').value = c.onConcede;
+    $('optCoinPlay').value = c.onPlay; $('optCoinCap').value = c.cap;
     $('optSpeed').value = String(CFG.defaults.speed);
     $('optSpeed').addEventListener('change', function () {
       S.speed = parseFloat($('optSpeed').value); Fx.setSpeed(S.speed);
@@ -91,11 +101,20 @@
 
   function readSetup() {
     return {
-      handSize: Math.max(1, +$('optHand').value || 12),
+      handSize: Math.max(1, +$('optHand').value || 14),
       winScore: Math.max(1, +$('optWin').value || 3),
-      coins: Math.max(0, +$('optCoin').value || 0),
       techCopies: Math.max(1, +$('optTech').value || 1),
-      charCopies: Math.max(1, +$('optChar').value || 1)
+      charCopies: Math.max(1, +$('optChar').value || 1),
+      roster: $('optRoster').value,
+      coin: {
+        start: Math.max(0, +$('optCoinStart').value || 0),
+        onReact: Math.max(0, +$('optCoinReact').value || 0),
+        onReactStreak: Math.max(0, +$('optCoinStreak').value || 0),
+        onConcede: Math.max(0, +$('optCoinConcede').value || 0),
+        onPlay: Math.max(0, +$('optCoinPlay').value || 0),
+        reactDraw: CFG.coin.reactDraw,
+        cap: Math.max(1, +$('optCoinCap').value || 12)
+      }
     };
   }
 
@@ -110,11 +129,14 @@
     $('capGrid').style.opacity = S.humanPlays ? '1' : '.4';
 
     var o = readSetup();
-    var deck = DATA.deckChars.length * o.charCopies + DATA.techs.length * o.techCopies + o.coins + 1;
+    var r = DATA.rosterFor(o.roster);
+    var deck = r.chars.length * o.charCopies + r.techs.length * o.techCopies + 1;
     var dealt = o.handSize * S.playerCount;
     $('deckNote').textContent =
-      '山札は ' + deck + ' 枚（キャラ ' + (DATA.deckChars.length * o.charCopies) +
-      '＋必殺 ' + (DATA.techs.length * o.techCopies) + '＋コイン ' + o.coins + '＋ボール1）。' +
+      '山札は ' + deck + ' 枚（キャラ ' + r.chars.length + '種×' + o.charCopies +
+      '＝' + (r.chars.length * o.charCopies) + '枚／必殺 ' + r.techs.length + '種×' + o.techCopies +
+      '＝' + (r.techs.length * o.techCopies) + '枚／ボール1枚）。' +
+      'コインはカードではなくトークンなので山札に入りません。' +
       '最初に ' + dealt + ' 枚配るので、山に残るのは ' + (deck - dealt) + ' 枚。山札が尽きたらタイムアップです。';
   }
 
@@ -162,7 +184,8 @@
 
     var g = E.createGame({
       players: players, handSize: o.handSize, winScore: o.winScore,
-      coins: o.coins, techCopies: o.techCopies, charCopies: o.charCopies,
+      techCopies: o.techCopies, charCopies: o.charCopies,
+      roster: o.roster, coin: o.coin,
       seed: (Math.random() * 1e9) | 0
     }, agents, onEvent);
 
@@ -215,6 +238,7 @@
 
       case 'turnStart':
         setBanner(pname(g, ev.p) + ' の番');
+        S.lastTurnPlayer = ev.p;
         if (ev.p !== S.human) await Fx.hold(240);
         break;
 
@@ -295,16 +319,46 @@
         await Fx.toast('【' + ev.card.name + '】は場に出ず手札に戻る', 1000);
         break;
 
+      /* 守り切った瞬間。ここがいちばん気持ちよくあってほしいので、専用の全画面演出にする */
       case 'catchResult':
-        if (ev.ok) await Fx.toast('キャッチ成功！　シュートは山札へ消えた', 1000);
+        if (ev.ok) await Fx.reaction('STOP!', 'とめた！', pname(g, ev.p), 'catch');
         break;
 
       case 'dribbleResult':
-        await Fx.toast(ev.ok ? '振り切った！　ディフェンスは山札へ' : 'つかまった！　ドリブルは山札へ', 950);
+        if (ev.ok) await Fx.reaction('BREAK!', 'ぬけた！', pname(g, ev.p), 'dribble');
+        else await Fx.toast('つかまった！　ドリブルは山札へ', 950);
         break;
 
       case 'defenseResult':
         await Fx.toast('ボールを奪った！', 850);
+        break;
+
+      case 'coin':
+        await Fx.coin(ev.n, ev.total, rectOf(playerEl(ev.p)), rectOf($('counters')), ev.p === S.human);
+        break;
+
+      /* 「間の人を飛ばして自分の番になった」ことを、はっきり出す */
+      case 'streak': {
+        var skipped = [];
+        var n2 = g.players.length;
+        for (var q = (S.lastTurnPlayer + 1) % n2; q !== ev.p; q = (q + 1) % n2) skipped.push(pname(g, q));
+        var msg = skipped.length
+          ? skipped.join('・') + ' を飛ばして、' + pname(g, ev.p) + ' の番！'
+          : '守り切った！　' + pname(g, ev.p) + ' の番！';
+        await Fx.takeover(msg, ev.n);
+        break;
+      }
+
+      case 'extraTurn':
+        await Fx.takeover(pname(g, ev.p) + ' は もう一度 自分の番！', 0);
+        break;
+
+      case 'digReveal':
+        await Fx.toast('山札の上 ' + ev.cards.length + ' 枚を確認…', 700);
+        break;
+
+      case 'dig':
+        await Fx.toast('【' + ev.kept.name + '】を手札に。残りは場へ', 900);
         break;
 
       case 'pass':
@@ -344,6 +398,10 @@
       case 'fieldToDeck': txt = '　場の【' + ev.card.name + '】を山札へ'; break;
       case 'returnToHand': txt = '　【' + ev.card.name + '】は手札に戻った'; break;
       case 'catchResult': txt = ev.ok ? '　キャッチ成功。シュートは山札へ' : '　キャッチ失敗' + (ev.catchToDeck ? '。キャッチカードは山札へ' : ''); break;
+      case 'coin': txt = '　' + pname(g, ev.p) + ' がコイン' + (ev.n > 0 ? '+' : '') + ev.n + '個（手持ち' + ev.total + '）'; break;
+      case 'streak': txt = ev.n >= 2 ? '　' + ev.n + '連続で守り切った！' : null; hi = ev.n >= 2; break;
+      case 'extraTurn': txt = '　' + pname(g, ev.p) + ' はもう一度自分の手番'; hi = true; break;
+      case 'dig': txt = '　山札を掘って【' + ev.kept.name + '】を手札に、残りは場へ'; break;
       case 'dribbleResult': txt = ev.ok ? '　振り切り成功。ディフェンスは山札へ' : '　振り切り失敗。ドリブルは山札へ'; break;
       case 'defenseResult': txt = '　' + pname(g, ev.p) + ' がボールを奪った'; break;
       case 'pass': txt = pname(g, ev.p) + ' はパス'; break;
@@ -947,11 +1005,14 @@
             var fopts = req.options.map(function (c) {
               return { el: c.kind === 'tech' ? R.techCard(c, { owned: owned }) : R.faceTile(c), value: c };
             });
-            return showChooser({
-              title: req.purpose === 'toDeck' ? '場から1枚、山札に戻す' : '場から1枚、無料でもらう',
-              sub: req.purpose === 'toDeck' ? '相手が狙っていそうなカードを消せます。' : 'コインを払わずに拾えます。',
-              options: fopts, foot: []
-            });
+            var PICK = {
+              toDeck: ['場から1枚、山札に戻す', '相手が狙っていそうなカードを消せます。'],
+              dig: ['山札の上を掘った', '1枚だけ手札にもらえます。残りは場に出ます。'],
+              raid: ['相手の選手を1人、ただで引き抜く', 'コインを払わずにもらえます。キャプテンは選べません。'],
+              scout: ['場から1枚、無料でもらう', 'コインを払わずに拾えます。']
+            };
+            var pk = PICK[req.purpose] || PICK.scout;
+            return showChooser({ title: pk[0], sub: pk[1], options: fopts, foot: [] });
           }
 
           case 'followUpShot': {
@@ -1022,7 +1083,8 @@
 
     var st = await Sim.run({
       playerCount: S.playerCount, handSize: o.handSize, winScore: o.winScore,
-      coins: o.coins, techCopies: o.techCopies, charCopies: o.charCopies
+      techCopies: o.techCopies, charCopies: o.charCopies,
+      roster: o.roster, coin: o.coin
     }, n, function (done, total) {
       $('simProgBar').style.inlineSize = (done / total * 100) + '%';
     });
@@ -1117,11 +1179,36 @@
       spread.map(function (k) { return '<tr><th>' + k + '</th><td>' + P(st.scoreSpread[k], g) + '</td></tr>'; }).join('') +
       '</table>';
 
+    out += '<h3>連携技はどれだけ撃たれたか</h3>' + tbl([
+      ['1人技のシュート', (st.shootBy[1] / g).toFixed(2) + '回/試合'],
+      ['2人技のシュート', (st.shootBy[2] / g).toFixed(2) + '回/試合', st.shootBy[2] / g < 1],
+      ['3人技のシュート', (st.shootBy[3] / g).toFixed(2) + '回/試合', st.shootBy[3] / g < 1],
+      ['連携技が占める割合', P(st.shootBy[2] + st.shootBy[3], st.shoots), (st.shootBy[2] + st.shootBy[3]) / (st.shoots || 1) < 0.3]
+    ]);
+
+    out += '<h3>リアクションは報われているか</h3>' + tbl([
+      ['リアクション成功（合計）', (st.reactWins / g).toFixed(2) + '回/試合', st.reactWins / g < 1.5],
+      ['2連続以上の守り', (st.streak2 / g).toFixed(2) + '回/試合'],
+      ['いちばん長い連続', st.streakMax + '連続'],
+      ['追加手番（イナズマブレイク）', (st.extraTurns / g).toFixed(2) + '回/試合']
+    ]);
+
+    out += '<h3>イナズマコイン</h3>' + tbl([
+      ['1試合に増えた総数', (st.coinsEarned / g).toFixed(1) + '個'],
+      ['1試合に使った総数', (st.coinsSpent / g).toFixed(1) + '個'],
+      ['終了時の持ち越し', (st.coinsLeft / g).toFixed(1) + '個', st.coinsLeft / g > 20]
+    ]);
+
+    var c = st.config.coin || {};
     out += '<h3>設定</h3>' + tbl([
       ['人数', st.config.playerCount], ['初期手札', st.config.handSize],
-      ['勝利点', st.config.winScore], ['コイン', st.config.coins],
+      ['勝利点', st.config.winScore],
+      ['収録キャラ', st.charKinds + '種'], ['必殺カード', st.techKinds + '種'],
       ['必殺カード複製', st.config.techCopies], ['キャラカード複製', st.config.charCopies],
-      ['山札総数', st.deckTotal]
+      ['山札総数', st.deckTotal + '枚'],
+      ['コイン 開始', (c.start != null ? c.start : 5) + '個'],
+      ['コイン リアクション成功', (c.onReact != null ? c.onReact : 2) + '個'],
+      ['コイン 失点', (c.onConcede != null ? c.onConcede : 1) + '個']
     ]);
     out += '<p style="opacity:.6;margin-top:1rem">※ これは判断材料です。数値をどうするかは作者が決めてください。</p>';
     return out;
