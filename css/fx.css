@@ -102,19 +102,29 @@
   display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr);
   padding:12%; rotate:0deg; scale:1;
 }
-.die.is-rolling{ animation:dieTumble .72s var(--ease-kick) both; }
+.die.is-spin{ animation:dieSpin .16s linear infinite; }
 .die.is-hit{ animation:dieHit .5s var(--ease-kick) both; }
 .die.is-miss{ animation:dieMiss .45s var(--ease-kick) both; }
 .die i{ border-radius:50%; background:var(--ink); inline-size:78%; block-size:78%; place-self:center; opacity:0; }
 .die i.on{ opacity:1; }
 .die.is-hit i.on{ background:var(--raimon); }
-@keyframes dieTumble{
-  0%  { rotate:0deg;   scale:.6; translate:0 -2.5rem }
-  30% { rotate:220deg; scale:1.15 }
-  60% { rotate:430deg; scale:.95 }
-  85% { rotate:700deg; scale:1.04 }
-  100%{ rotate:720deg; scale:1;  translate:0 0 }
+@keyframes dieSpin{
+  0%  { rotate:-3deg; scale:1 }
+  50% { rotate:3deg;  scale:1.04 }
+  100%{ rotate:-3deg; scale:1 }
 }
+
+/* 抽選中の大きな数字。切り替わっているのが一目で分かるように */
+.diceStage__num{
+  font-family:var(--f-num); font-size:3.4rem; line-height:1;
+  color:var(--bolt); min-inline-size:2.6ch; text-align:center;
+  -webkit-text-stroke:.18rem var(--ink); paint-order:stroke fill;
+  text-shadow:0 .28rem 0 var(--ink);
+}
+.diceStage.is-ok  .diceStage__num{ color:var(--bolt); animation:numLock .4s var(--ease-whip) both; }
+.diceStage.is-ng  .diceStage__num{ color:#FF7A55; animation:numLock .4s var(--ease-whip) both; }
+@keyframes numLock{ 0%{ scale:1.5 } 60%{ scale:.92 } 100%{ scale:1 } }
+.diceStage__hint{ font-size:.78rem; opacity:.6; letter-spacing:.12em; }
 @keyframes dieHit{ 0%{ scale:1 } 40%{ scale:1.28 } 100%{ scale:1.12 } }
 @keyframes dieMiss{ 0%{ scale:1 } 30%{ translate:-.6rem 0 } 55%{ translate:.6rem 0 } 80%{ translate:-.3rem 0 } 100%{ translate:0 0; scale:.92 } }
 
@@ -127,7 +137,8 @@
   border:1px solid rgba(255,255,255,.14);
 }
 .needrow .pip.need{ background:rgba(255,206,31,.2); color:var(--bolt); border-color:var(--bolt); }
-.needrow .pip.rolled{ outline:.19rem solid var(--raimon); outline-offset:.1rem; }
+.needrow .pip.flick{ background:rgba(255,255,255,.3); color:#fff; }
+.needrow .pip.rolled{ outline:.22rem solid var(--raimon); outline-offset:.12rem; scale:1.18; }
 .diceStage__verdict{ font-family:var(--f-disp); font-size:1.8rem; padding:.15em 1em; border-block:.19rem solid; }
 .diceStage__verdict.ok{ color:var(--bolt); border-color:var(--bolt); }
 .diceStage__verdict.ng{ color:#FF7A55; border-color:#FF7A55; }

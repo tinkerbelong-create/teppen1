@@ -153,6 +153,20 @@
    * 場の山（種類ごとに重ねる）
    * ルールブック9章「場が大きくなってきたら、種類ごとに分けて並べる」を画面でもやる。
    * ============================================================== */
+  /* 縦持ちのスマホでは、山をカードではなく小さな札にする（横に5つ並べるため） */
+  function pileChip(kindLabel, cards) {
+    var e = el('div', 'pilechip');
+    e.dataset.pile = kindLabel;
+    var top = el('div', 'pilechip__ic');
+    if (kindLabel === '選手') { top.textContent = '人'; top.classList.add('ic', 'ic--char'); }
+    else { top.className = 'ic ic--' + kindLabel; top.textContent = kindLabel.charAt(0); }
+    e.appendChild(top);
+    e.appendChild(el('div', 'pilechip__n', String(cards.length)));
+    e.appendChild(el('div', 'pilechip__label', kindLabel));
+    if (!cards.length) e.classList.add('is-empty');
+    return e;
+  }
+
   function pile(kindLabel, cards, ctx) {
     var e = el('div', 'pile');
     e.dataset.pile = kindLabel;
@@ -291,7 +305,7 @@
   NS.Render = {
     el: el, icon: icon, diceLabel: diceLabel, techsOf: techsOf, INV: INV,
     faceTile: faceTile, techCard: techCard, reqChip: reqChip,
-    coinStack: coinStack, pile: pile, counter: counter, bigCard: bigCard, card: card,
+    coinStack: coinStack, pile: pile, pileChip: pileChip, counter: counter, bigCard: bigCard, card: card,
     url: function (p) { return NS.asset(p); }
   };
 

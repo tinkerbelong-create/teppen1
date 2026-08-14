@@ -100,15 +100,25 @@
     return d;
   }
 
+  function setPips(d, n) {
+    for (var i = 0; i < 9; i++) d.children[i].className = (PIPS[n].indexOf(i) >= 0) ? 'on' : '';
+  }
+
+  /* サイコロ。1〜6がバババッと切り替わってから止まる。
+   * 必要な出目は最初から並べて出しておき、止まった瞬間に成功／失敗が色で分かるようにする。
+   * 通信対戦では、ホストが振った目がそのまま配られるので全員同じ目が出る。 */
   async function dice(ev, whoName) {
     if (speed === 0) return;
     busy();
     var stage = R.el('div', 'diceStage');
     stage.appendChild(R.el('div', 'diceStage__who', whoName + ' のサイコロ'));
 
-    var d = dieEl(ev.roll);
-    d.classList.add('is-rolling');
+    var d = dieEl(1);
+    d.classList.add('is-spin');
     stage.appendChild(d);
+
+    var big = R.el('div', 'diceStage__num', '?');
+    stage.appendChild(big);
 
     var row = R.el('div', 'needrow');
     for (var n = 1; n <= 6; n++) {
@@ -117,6 +127,8 @@
       row.appendChild(p);
     }
     stage.appendChild(row);
+    stage.appendChild(R.el('div', 'diceStage__hint',
+      '成功する出目 ' + (ev.need.length) + '/6'));
 
     var verdict = R.el('div', 'diceStage__verdict');
     verdict.style.visibility = 'hidden';
@@ -124,18 +136,46 @@
     stage.appendChild(verdict);
 
     root.appendChild(stage);
-    await hold(760);                       /* 転がる */
 
-    d.classList.remove('is-rolling');
+    /* 高速で切り替える → だんだん遅くする → 止まる。
+     * requestAnimationFrame は画面が止まっていると走らないことがあるので、
+     * 確実に動く setTimeout で回す。 */
+    var spinMs = (reduce ? 260 : 950) * Math.max(speed, .35);
+    var t0 = Date.now(), last = -1;
+    await new Promise(function (res) {
+      function tick() {
+        var e = (Date.now() - t0) / spinMs;
+        if (e >= 1) { res(); return; }
+        var v;
+        do { v = 1 + Math.floor(Math.random() * 6); } while (v === last && Math.random() < .8);
+        last = v;
+        setPips(d, v);
+        big.textContent = v;
+        var prev = row.querySelector('.pip.flick');
+        if (prev) prev.classList.remove('flick');
+        row.children[v - 1].classList.add('flick');
+        /* 終盤ほど間隔を空けて、止まりそうな感じを出す */
+        setTimeout(tick, 45 + 210 * e * e * e);
+      }
+      tick();
+    });
+
+    /* 確定 */
+    setPips(d, ev.roll);
+    big.textContent = ev.roll;
+    d.classList.remove('is-spin');
     d.classList.add(ev.ok ? 'is-hit' : 'is-miss');
+    stage.classList.add(ev.ok ? 'is-ok' : 'is-ng');
+    row.querySelectorAll('.pip.flick').forEach(function (x) { x.classList.remove('flick'); });
     row.children[ev.roll - 1].classList.add('rolled');
+
     verdict.style.visibility = 'visible';
     verdict.className = 'diceStage__verdict ' + (ev.ok ? 'ok' : 'ng');
     verdict.textContent = ev.ok
       ? (ev.of === 'catch' ? 'とめた！' : 'ぬけた！')
       : (ev.of === 'catch' ? 'とどかない…' : 'つかまった…');
 
-    await hold(1050);
+    await hold(950);
     stage.remove();
     root.style.pointerEvents = 'none';
   }

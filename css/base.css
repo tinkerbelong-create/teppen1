@@ -188,6 +188,81 @@ button,input,select{ font:inherit; color:inherit; }
 .simout h3{ font-family:var(--f-disp); font-size:.95rem; color:var(--bolt); margin:1rem 0 .2rem; font-weight:400; break-after:avoid; }
 .simout .flag{ color:#FF8A5C; }
 
+/* ---------------- 通信対戦 ---------------- */
+.btn--net{
+  background:linear-gradient(180deg,#2FA9E0,#1B7CAA); color:#04222F;
+  border-radius:var(--r-chip);
+  box-shadow:0 0.25rem 0 #12556F, 0 0.6rem 1.4rem rgba(47,169,224,.2);
+  font-size:1.05rem; padding:0.7em 1.8em;
+}
+.btn--net:active{ box-shadow:0 0.13rem 0 #12556F; }
+
+.txt{
+  inline-size:100%; font-family:var(--f-ui); font-size:1rem;
+  background:rgba(0,0,0,.35); color:var(--line);
+  border:1px solid rgba(255,255,255,.2); border-radius:var(--r-btn);
+  padding:.6em .7em; min-block-size:2.75rem;
+}
+.txt--code{
+  inline-size:6.5em; text-align:center; letter-spacing:.35em;
+  font-family:var(--f-num); font-size:1.5rem; color:var(--bolt);
+}
+.netrow{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-block:.5rem; }
+
+.roomcode{
+  display:flex; align-items:center; justify-content:center; gap:.8rem;
+  background:rgba(255,206,31,.12); border:.13rem solid var(--bolt);
+  border-radius:var(--r-card); padding:.6rem 1rem; margin-block-end:.8rem;
+}
+.roomcode__label{ font-size:.8rem; opacity:.8; }
+.roomcode__val{ font-family:var(--f-num); font-size:2.6rem; color:var(--bolt); letter-spacing:.2em; }
+
+.seatlist{ list-style:none; margin:0; padding:0; display:grid; gap:.35rem; }
+.seatrow{
+  display:grid; grid-template-columns:4.5rem 1fr auto; align-items:center; gap:.6rem;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  border-radius:var(--r-btn); padding:.5rem .7rem; font-size:.88rem;
+}
+.seatrow.is-me{ border-color:var(--bolt); background:rgba(255,206,31,.12); }
+.seatrow__n{ font-family:var(--f-disp); font-size:.78rem; opacity:.75; }
+.seatrow__name.is-empty{ opacity:.45; }
+.seatrow__st{ font-size:.68rem; opacity:.55; }
+.seatrow__st.is-on{ color:#5BD98A; opacity:1; }
+
+.netwait{ font-size:.88rem; opacity:.75; text-align:center; padding:1rem 0; }
+.netmsg{ font-size:.82rem; line-height:1.6; margin-block-start:.8rem; opacity:.85; word-break:break-all; }
+.netmsg.is-bad{ color:#FF8A5C; }
+
+.netbadge{
+  font-family:var(--f-num); font-size:.62rem;
+  background:rgba(91,217,138,.18); color:#7FE3A6;
+  border:1px solid rgba(91,217,138,.5); border-radius:var(--r-chip);
+  padding:.3em .8em; white-space:nowrap;
+}
+.netbadge.is-off{ background:rgba(255,138,92,.18); color:#FF8A5C; border-color:rgba(255,138,92,.55); }
+.netbadge[hidden]{ display:none; }
+
+/* ---------------- 指で押せる大きさ ---------------- */
+@media (pointer:coarse){
+  .tool{ min-block-size:2.5rem; padding-inline:1em; }
+  .btn{ min-block-size:2.75rem; }
+  #actsLayer button{ min-block-size:2.75rem; padding-inline:1.3em; }
+  .chooser__foot .btn{ min-block-size:2.75rem; }
+  .logpane__close{ min-block-size:2.5rem; }
+  .seg button{ min-block-size:2.75rem; }
+  .num input, .num select{ min-block-size:2.75rem; }
+}
+
+/* 縦長の画面では、設定シートを1列にして読みやすくする */
+@media (max-width: 820px), (orientation: portrait){
+  .sheet__cols{ grid-template-columns:1fr; }
+  .sheet__inner{ padding:1.1rem .9rem 1.4rem; }
+  .sheet__title{ font-size:1.6rem; }
+  .capgrid{ grid-template-columns:1fr; }
+  .simout{ columns:1; }
+  .sheet__actions .btn{ flex:1 1 100%; text-align:center; }
+}
+
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }

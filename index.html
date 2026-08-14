@@ -37,6 +37,7 @@
     <div class="hud__brand"><span aria-hidden="true">⚡</span>テッペンとリーヨ！</div>
     <div class="hud__scores" id="scores"></div>
     <nav class="hud__tools">
+      <span class="netbadge" id="netBadge" hidden></span>
       <a class="tool" id="btnRules" href="あそびかた.html" target="_blank" rel="noopener">あそびかた</a>
       <button type="button" class="tool" id="btnLog" aria-pressed="false">記録</button>
       <button type="button" class="tool" id="btnMenu">設定</button>
@@ -58,7 +59,10 @@
     <div class="hand" id="hand"></div>
   </section>
 
-  <div class="banner" id="banner" hidden></div>
+  <div class="banner" id="banner" hidden>
+    <span id="bannerText"></span>
+    <button type="button" class="banner__back" id="btnBannerBack" hidden>もどる</button>
+  </div>
 </div>
 
 <!-- 演出 -->
@@ -141,10 +145,81 @@
     </div>
 
     <div class="sheet__actions">
-      <button type="button" class="btn btn--go" id="btnStart">キックオフ</button>
+      <button type="button" class="btn btn--go" id="btnStart">1人で遊ぶ（CPU戦）</button>
+      <button type="button" class="btn btn--net" id="btnNet">みんなで遊ぶ（通信対戦）</button>
       <button type="button" class="btn btn--sub" id="btnSim">CPU同士で回す</button>
-      <a class="btn btn--sub" href="あそびかた.html" target="_blank" rel="noopener">あそびかたを読む</a>
+      <a class="btn btn--sub" href="あそびかた.html" target="_blank" rel="noopener">あそびかた</a>
+      <button type="button" class="btn btn--sub" id="btnCloseSetup" hidden>閉じる（試合をつづける）</button>
     </div>
+  </div>
+</dialog>
+
+<!-- 通信対戦 -->
+<dialog class="sheet" id="netdlg">
+  <div class="sheet__inner">
+    <h1 class="sheet__title"><em>通信対戦</em></h1>
+    <p class="sheet__lead" id="netLead">それぞれのスマホから、同じ試合に参加します。</p>
+
+    <div id="netStep1">
+      <fieldset class="grp">
+        <legend>あなたの名前</legend>
+        <input class="txt" type="text" id="netName" maxlength="8" placeholder="あらい">
+      </fieldset>
+
+      <fieldset class="grp" id="netDbBox">
+        <legend>データベースのURL（部屋を作る人だけ・1回だけ）</legend>
+        <input class="txt" type="url" id="netDb" placeholder="https://〇〇-default-rtdb.firebaseio.com">
+        <p class="grp__note">
+          Firebase の Realtime Database に出ているURLを貼ってください。
+          1回貼れば、この端末が覚えます。<strong>参加するだけの人は、ここは空でかまいません。</strong><br>
+          手順は「通信対戦の準備.md」に書いてあります。
+        </p>
+      </fieldset>
+
+      <fieldset class="grp">
+        <legend>部屋</legend>
+        <div class="netrow">
+          <button type="button" class="btn btn--go" id="btnCreateRoom">部屋を作る</button>
+        </div>
+        <div class="netrow">
+          <input class="txt txt--code" type="text" id="netCode" maxlength="4" placeholder="ABCD" autocapitalize="characters">
+          <button type="button" class="btn btn--net" id="btnJoinRoom">合言葉で入る</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <div id="netStep2" hidden>
+      <div class="roomcode">
+        <span class="roomcode__label">合言葉</span>
+        <strong class="roomcode__val" id="netCodeBig">----</strong>
+      </div>
+      <div class="netrow">
+        <button type="button" class="btn btn--go" id="btnCopyLink">リンクをコピー</button>
+        <button type="button" class="btn btn--sub" id="btnShareLink">送る</button>
+      </div>
+      <p class="grp__note">このリンクを送れば、相手は開くだけで参加できます。</p>
+
+      <fieldset class="grp">
+        <legend>参加している人</legend>
+        <ul class="seatlist" id="netSeats"></ul>
+      </fieldset>
+
+      <div id="netHostCtl">
+        <fieldset class="grp">
+          <legend>席の数（空いた席はCPUになります）</legend>
+          <div class="seg" id="netSeatCount" role="radiogroup"></div>
+        </fieldset>
+        <div class="sheet__actions">
+          <button type="button" class="btn btn--go" id="btnNetStart">キックオフ</button>
+        </div>
+      </div>
+      <p class="netwait" id="netWait" hidden>ホストが始めるのを待っています…</p>
+    </div>
+
+    <div class="sheet__actions">
+      <button type="button" class="btn btn--sub" id="btnNetBack">もどる</button>
+    </div>
+    <p class="netmsg" id="netMsg"></p>
   </div>
 </dialog>
 
@@ -164,12 +239,15 @@
 </dialog>
 
 <script src="js/config.js"></script>
+<script src="js/net-config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/render.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/wire.js"></script>
+<script src="js/net.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

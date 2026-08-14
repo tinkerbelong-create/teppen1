@@ -17,24 +17,58 @@
 
   function $(id) { return document.getElementById(id); }
 
+  var W = NS.Wire, Net = NS.Net;
+
   var S = {
     game: null, human: -1,
     playerCount: CFG.defaults.playerCount,
     humanPlays: CFG.defaults.humanPlays,
     myCap: CFG.defaults.captain,
     awaitAction: null, sel: null, targeting: null,
-    prevBall: 0, speed: CFG.defaults.speed
+    prevBall: 0, speed: CFG.defaults.speed,
+    layout: 'wide',
+    lastTurnPlayer: 0,
+    /* 通信対戦 */
+    mode: 'cpu',            /* 'cpu' | 'host' | 'guest' */
+    netSeats: {}, netCount: 2, rid: 0, viewN: 0,
+    gQueue: [], gBusy: false, gLastN: -1, gLastRid: -1
   };
 
   /* ================================================================
    * 版面をウィンドウに合わせる
    * ============================================================== */
+  /* 版面は2つ用意する。横長（PC・スマホ横持ち）と縦長（スマホ縦持ち）。
+   * どちらも「決めた寸法どおりに組んで、画面に合わせて全体を縮める」やり方は同じ。
+   * 数字の単位は rem（1rem ＝ 16px × 倍率）。 */
+  var LAYOUT = {
+    wide: {
+      w: 1440, h: 810, rem: 16,
+      handW: 90 - 1.8 - 4 - 0.8, handH: 50.625 - 3.25 - 12.5 - 10 - 9 - 1,
+      maxCw: 20, myW: 90 - 1.8 - 2.2, myH: 9 - 0.85, myTw: 7.2,
+      oppH: 12.5 - 0.8 - 1.5, oppTw: 4.6, oppPad: 1.1, stageW: 90, pad: 1.8,
+      compactPiles: false
+    },
+    tall: {
+      w: 390, h: 780, rem: 16,
+      handW: 24.375 - 1.0 - 1.6 - 0.35, handH: 48.75 - 2.6 - 9.0 - 7.4 - 6.8 - 0.9,
+      maxCw: 20, myW: 24.375 - 1.0 - 1.6, myH: 6.8 - 0.8, myTw: 5.4,
+      oppH: 9.0 - 0.7 - 1.4, oppTw: 3.6, oppPad: 0.85, stageW: 24.375, pad: 1.0,
+      compactPiles: true
+    }
+  };
+  function LP() { return LAYOUT[S.layout] || LAYOUT.wide; }
+
   function fitStage() {
-    var c = CFG.stage;
-    var w = global.innerWidth || document.documentElement.clientWidth || c.w;
-    var h = global.innerHeight || document.documentElement.clientHeight || c.h;
-    /* 起動直後にウィンドウの大きさが 0 で返ってくることがある。
-     * そのまま計算すると盤面がつぶれるので、下限を入れておく。 */
+    var de = document.documentElement;
+    var w = de.clientWidth || global.innerWidth || 1440;
+    var h = de.clientHeight || global.innerHeight || 810;
+    /* 縦のほうが長い、または横幅が狭いときは縦持ち用に切り替える */
+    var mode = (h > w * 1.05 || w < 820) ? 'tall' : 'wide';
+    S.layout = mode;
+    var c = LAYOUT[mode];
+    var st = $('stage');
+    if (st) st.dataset.mode = mode;
+    /* 起動直後にウィンドウの大きさが 0 で返ってくることがある。下限を入れておく */
     var u = Math.max(0.3, Math.min(w / c.w, h / c.h));
     document.documentElement.style.fontSize = (c.rem * u) + 'px';
   }
@@ -154,33 +188,50 @@
     };
   }
 
-  function startGame() {
+  /* net を渡すと通信対戦のホストとして始める。
+   *   net = { seats: {席番号: {name}}, count: 席の数 } */
+  function startGame(net) {
     /* 前の試合がまだ走っていたら止める。
      * 止めないと2つの試合が同じ盤面に描き込み、決着表示まで混ざる。 */
     if (S.game) S.game.aborted = true;
 
     var o = readSetup();
-    var n = S.playerCount;
-    S.human = S.humanPlays ? 0 : -1;
+    var n, i, j;
+
+    if (net) {
+      S.mode = 'host';
+      S.human = 0;
+      n = net.count;
+      S.remoteSeats = [];
+      for (i = 1; i < n; i++) if (net.seats[i]) S.remoteSeats.push(i);
+    } else {
+      S.mode = 'cpu';
+      S.remoteSeats = [];
+      n = S.playerCount;
+      S.human = S.humanPlays ? 0 : -1;
+    }
 
     var caps = [1, 2, 3, 4];
     E.shuffle(caps, E.makeRng((Math.random() * 1e9) | 0));
-    if (S.human === 0) {
+    if (S.human === 0 && !net) {
       caps.splice(caps.indexOf(S.myCap), 1);
       caps.unshift(S.myCap);
     }
 
     var players = [];
-    for (var i = 0; i < n; i++) {
-      players.push({
-        name: (i === S.human) ? 'あなた' : 'CPU' + (S.human === 0 ? i : i + 1),
-        cpu: i !== S.human,
-        captain: caps[i]
-      });
+    for (i = 0; i < n; i++) {
+      var nm;
+      if (net) nm = net.seats[i] ? net.seats[i].name : ('CPU' + (i + 1));
+      else nm = (i === S.human) ? 'あなた' : 'CPU' + (S.human === 0 ? i : i + 1);
+      players.push({ name: nm, cpu: net ? !net.seats[i] : (i !== S.human), captain: caps[i] });
     }
 
     var agents = [];
-    for (var j = 0; j < n; j++) agents.push(j === S.human ? humanAgent() : cpuAgent());
+    for (j = 0; j < n; j++) {
+      if (j === S.human) agents.push(humanAgent());
+      else if (net && net.seats[j]) agents.push(remoteAgent(j));
+      else agents.push(cpuAgent());
+    }
 
     var g = E.createGame({
       players: players, handSize: o.handSize, winScore: o.winScore,
@@ -223,10 +274,106 @@
 
   async function onEvent(ev, g) {
     if (g !== S.game) return;          /* やり直し前の試合の出来事は捨てる */
+
+    /* ホストは、出来事と「その席から見える盤面」を全員に配る。
+     * 席ごとに別の場所へ書くので、他人の伏せ札は相手の端末に届かない。 */
+    if (S.mode === 'host' && S.remoteSeats && S.remoteSeats.length) {
+      S.viewN++;
+      var views = {};
+      S.remoteSeats.forEach(function (seat) { views[seat] = W.packView(g, seat); });
+      Net.pushViews(S.viewN, W.packEv(ev), views);
+      /* 手番の区切りで状態を保存しておく。ホストが落ちても、ここから再開できる */
+      if (ev.k === 'turnStart') Net.saveSnapshot(W.packSnapshot(g));
+    }
+
     addLog(ev, g);
     await animate(ev, g);
     if (g !== S.game) return;
     renderAll();
+  }
+
+  /* ================================================================
+   * 通信対戦：ホスト側（ルール処理はこの端末だけで動く）
+   * ============================================================== */
+
+  /* 遠くのプレイヤーに「何を選ぶか」を聞きに行く役 */
+  function remoteAgent(seat) {
+    var fallback = AI.makeAgent();
+    return {
+      cpu: false, remote: true,
+      decide: async function (g, pi, req) {
+        var rid = ++S.rid;
+        try {
+          await Net.pushPrompt(seat, rid, W.packPrompt(req));
+        } catch (e) { return fallback.decide(g, pi, req); }
+
+        var plain = await Net.waitAction(seat, rid, 150000);
+        try { await Net.clearPrompt(seat); } catch (e) { }
+
+        if (plain == null) {
+          /* 返事がない（電波が切れた・画面を閉じた）。試合が止まらないようCPUが代打 */
+          await Fx.toast(g.players[pi].name + ' の返事がないので、CPUが代わりに動きます', 1100);
+          return fallback.decide(g, pi, req);
+        }
+        return W.resolveChoice(req, plain) || fallback.decide(g, pi, req);
+      }
+    };
+  }
+
+  /* ================================================================
+   * 通信対戦：ゲスト側（画面を受け取って、押した結果を返すだけ）
+   * ============================================================== */
+  function guestStart(seat) {
+    S.mode = 'guest';
+    S.human = seat;
+    S.game = null;
+    S.gQueue = []; S.gBusy = false; S.gLastN = -1; S.gLastRid = -1;
+    lastTurn = -1;
+    $('logList').replaceChildren();
+    $('stage').hidden = false;
+    Fx.clear();
+    fitStage();
+    setBanner('ホストの準備を待っています…');
+    Net.onMyView(function (v) {
+      if (v.n !== undefined && v.n !== S.gLastN) {
+        S.gLastN = v.n;
+        S.gQueue.push({ state: v.state, ev: v.ev });
+      }
+      if (v.prompt && v.prompt.rid !== S.gLastRid) {
+        S.gLastRid = v.prompt.rid;
+        S.gQueue.push({ prompt: v.prompt });
+      }
+      guestDrain();
+    });
+  }
+
+  async function guestDrain() {
+    if (S.gBusy) return;
+    S.gBusy = true;
+    try {
+      while (S.gQueue.length) {
+        var job = S.gQueue.shift();
+        if (job.state) {
+          S.game = W.unpackView(job.state);
+          S.human = job.state.seat;
+          if (job.ev) {
+            var ev = W.unpackEv(job.ev);
+            addLog(ev, S.game);
+            await animate(ev, S.game);
+            if (ev.k === 'end') { renderAll(); showFinish(S.game); continue; }
+          }
+          renderAll();
+        }
+        if (job.prompt) {
+          var req = W.unpackPrompt(job.prompt.req);
+          var choice = await humanDecide(req);
+          try {
+            await Net.sendAction(job.prompt.rid, W.packChoice(req.kind, choice));
+          } catch (e) { console.error(e); }
+          setBanner('相手の番を待っています…');
+        }
+      }
+    } finally { S.gBusy = false; }
   }
 
   var CENTER = function () {
@@ -419,10 +566,14 @@
   /* ================================================================
    * 描画
    * ============================================================== */
-  function setBanner(text) {
+  /* back を渡すと「もどる」ボタンが出る。押し間違えたときに詰まらないように */
+  function setBanner(text, back) {
     var b = $('banner');
     if (!text) { b.hidden = true; return; }
-    b.replaceChildren(R.el('span', null, text));
+    $('bannerText').textContent = text;
+    var bb = $('btnBannerBack');
+    bb.hidden = !back;
+    bb.onclick = back ? function (e) { e.stopPropagation(); back(); } : null;
     b.hidden = false;
   }
 
@@ -460,8 +611,20 @@
     renderMyBench(g, idx);
     renderHand(g, idx, owned);
     mountActs();
-    if (S.targeting) setBanner('だれに撃つ？　相手をタップ');
-    else if (S.awaitAction) setBanner('あなたの番　カードをタップ、または上へドラッグ');
+    if (S.targeting) {
+      setBanner('だれに撃つ？　相手をタップ', function () {
+        /* ワザ選びに戻す。押し間違えても詰まらないように */
+        var uid = S.targeting.fromUid;
+        S.targeting = null; S.sel = uid;
+        renderAll();
+      });
+    } else if (S.awaitAction) {
+      setBanner('あなたの番　カードをタップ、または上へドラッグ');
+    } else if (S.mode === 'guest') {
+      setBanner(g.players[g.turn] ? g.players[g.turn].name + ' の番を待っています' : null);
+    } else {
+      setBanner(null);
+    }
   }
 
   function renderScores(g) {
@@ -485,14 +648,15 @@
   function benchTile(n, availW, availH, maxTw) {
     if (n <= 0) return maxTw;
     var best = 0;
-    for (var r = 1; r <= 3; r++) {
+    for (var r = 1; r <= 4; r++) {
       var per = Math.ceil(n / r);
       var byW = (availW - (per - 1) * 0.25) / per;
       var byH = (availH - (r - 1) * 0.25) / (r * 1.26);
       var tw = Math.min(maxTw, byW, byH);
       if (tw > best) best = tw;
     }
-    return Math.max(1.8, best);
+    /* 下限を切ると横へあふれるので、幅から出る上限は必ず守る */
+    return Math.max(1.2, Math.min(best, (availW - (n - 1) * 0.25) / n * 4));
   }
 
   function renderOpponents(g, idx, owned) {
@@ -503,7 +667,8 @@
     if (!others.length) return;
 
     /* 相手パネル1枚ぶんの内寸（rem）。版面が固定なので計算で出せる */
-    var panelInner = (90 - 1.8 - (others.length - 1) * 0.5) / others.length - 1.1;
+    var L = LP();
+    var panelInner = (L.stageW - L.pad - (others.length - 1) * 0.5) / others.length - L.oppPad;
 
     others.forEach(function (i) {
       var p = g.players[i];
@@ -515,12 +680,14 @@
       head.appendChild(R.el('span', 'opp__name', p.name));
       head.appendChild(R.el('span', 'opp__score', String(p.score)));
       if (i === g.ball) head.appendChild(R.el('span', 'opp__ball', '⚽'));
-      head.appendChild(R.el('span', 'opp__hidden', '伏せ ' + E.hiddenHand(g, i).length));
+      /* 通信対戦では相手の伏せ札の中身が届かないので、枚数だけを受け取って出す */
+      var hid = (p.hiddenCount != null) ? p.hiddenCount : E.hiddenHand(g, i).length;
+      head.appendChild(R.el('span', 'opp__hidden', '伏せ ' + hid));
       o.appendChild(head);
 
       var chars = [p.captain].concat(E.handChars(g, i));
       /* パネルの内寸（幅・高さ）に収まる大きさを出す */
-      var tw = benchTile(chars.length, panelInner, 12.5 - 0.8 - 1.5, 4.6);
+      var tw = benchTile(chars.length, panelInner, L.oppH, L.oppTw);
 
       var tiles = R.el('div', 'opp__tiles');
       chars.forEach(function (c, k) {
@@ -558,10 +725,11 @@
     var box = $('piles');
     box.replaceChildren();
 
+    var compact = LP().compactPiles;
     PILE_DEFS.forEach(function (def) {
       var cards = g.field.filter(def.test);
       var live = cards.some(function (c) { return idx['field|' + c.kind + '|' + c.name]; });
-      var e = R.pile(def.key, cards, { owned: owned });
+      var e = compact ? R.pileChip(def.key, cards) : R.pile(def.key, cards, { owned: owned });
       if (live) e.classList.add('is-live');
       e.addEventListener('click', function (ev) {
         ev.stopPropagation();
@@ -574,7 +742,6 @@
     var cnt = $('counters');
     cnt.replaceChildren();
     cnt.appendChild(R.counter('山札', g.deck.length, 'counter--deck'));
-    cnt.appendChild(R.counter('捨て札', g.discard.length));
     if (S.human >= 0) cnt.appendChild(R.coinStack(E.countCoins(g, S.human)));
   }
 
@@ -586,9 +753,9 @@
       return;
     }
     box.appendChild(R.el('div', 'bench__label', '自分の選手'));
-    /* 90（版面）－1.8（左右の余白）－2.2（縦書きラベルと安全代） */
+    var L = LP();
     var chars = [g.players[S.human].captain].concat(E.handChars(g, S.human));
-    var tw = benchTile(chars.length, 90 - 1.8 - 2.2, 9 - 0.85, 7.2);
+    var tw = benchTile(chars.length, L.myW, L.myH, L.myTw);
     chars.forEach(function (c, k) {
       var e = R.faceTile(c);
       e.style.setProperty('--tw', tw + 'rem');
@@ -599,17 +766,28 @@
 
   /* 手札の必殺カードは、枚数から段数と大きさを計算して並べる。
    * こうすると重ならないので、技名が必ず読める。 */
+  /* 手札の入れ物の大きさは、決め打ちせず実際に測る。
+   * 決め打ちだと、余白や左の欄の分だけずれて、カードが画面からはみ出す。 */
+  function handAvail() {
+    var L = LP();
+    var fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    var box = $('hand');
+    var w = box ? box.clientWidth / fs : 0;
+    var h = box ? box.clientHeight / fs : 0;
+    return { w: (w > 4 ? w : L.handW) - 0.3, h: (h > 4 ? h : L.handH) - 0.3 };
+  }
+
   function handLayout(n) {
-    var AVAIL_W = 90 - 1.8 - 4 - 0.8;             /* 版面 － 余白 － 左の欄 － すき間 */
-    var AVAIL_H = 50.625 - 3.25 - 12.5 - 10 - 9 - 1;
+    var L = LP(), A = handAvail();
     var best = { cw: 0, rows: 1 };
-    for (var r = 1; r <= 4; r++) {
+    for (var r = 1; r <= 6; r++) {
       var per = Math.ceil(n / r);
-      var byW = (AVAIL_W - (per - 1) * 0.4) / per;
-      var byH = ((AVAIL_H - (r - 1) * 0.4) / r) * 1.88;
-      var cw = Math.min(20, byW, byH);
+      var byW = (A.w - (per - 1) * 0.4) / per;
+      var byH = ((A.h - (r - 1) * 0.4) / r) * 1.88;
+      var cw = Math.min(L.maxCw, byW, byH);
       if (cw > best.cw) best = { cw: cw, rows: r };
     }
+    best.cw = Math.max(3, best.cw);
     return best;
   }
 
@@ -694,7 +872,7 @@
       chip('シュート！', null, function () {
         var bt = {};
         byType.shoot.forEach(function (m) { bt[m.target] = withUid(m, cardData); });
-        S.targeting = { byTarget: bt };
+        S.targeting = { byTarget: bt, fromUid: cardData.uid };
         S.sel = null;
         renderAll();
       });
@@ -943,9 +1121,14 @@
    * 人間のエージェント
    * ============================================================== */
   function humanAgent() {
-    return {
-      cpu: false,
-      decide: function (g, pi, req) {
+    return { cpu: false, decide: function (g, pi, req) { return humanDecide(req); } };
+  }
+
+  /* 自分が選ぶ場面をまとめたもの。
+   * CPU戦でも通信対戦（ゲスト側）でも、同じ画面をそのまま使う。 */
+  function humanDecide(req) {
+    var g = S.game, pi = S.human;
+    return (function () {
         var owned = ownedBases(g, pi);
         switch (req.kind) {
           case 'action':
@@ -1031,8 +1214,7 @@
           }
         }
         return null;
-      }
-    };
+    })();
   }
 
   /* ================================================================
@@ -1215,13 +1397,180 @@
   }
 
   /* ================================================================
+   * 通信対戦の画面まわり
+   * ============================================================== */
+  function netMsg(t, bad) {
+    var e = $('netMsg');
+    e.textContent = t || '';
+    e.className = 'netmsg' + (bad ? ' is-bad' : '');
+  }
+  function netStep(n) {
+    $('netStep1').hidden = (n !== 1);
+    $('netStep2').hidden = (n !== 2);
+  }
+  function myName() {
+    var v = ($('netName').value || '').trim();
+    if (v) localStorage.setItem('teppen.name', v);
+    return v || localStorage.getItem('teppen.name') || 'プレイヤー';
+  }
+
+  function netOpen() {
+    $('setup').close();
+    var p = Net.urlParams();
+    if (p.db) Net.setDbUrl(p.db);
+    $('netDb').value = Net.getDbUrl();
+    $('netName').value = localStorage.getItem('teppen.name') || '';
+    if (p.room) $('netCode').value = p.room;
+    netStep(1);
+    netMsg('');
+    if (!$('netdlg').open) $('netdlg').showModal();
+  }
+
+  function netSeatList(seats) {
+    S.netSeats = seats || {};
+    var ul = $('netSeats');
+    ul.replaceChildren();
+    for (var i = 0; i < 4; i++) {
+      var s = S.netSeats[i];
+      var li = R.el('li', 'seatrow' + (i === Net.seat() ? ' is-me' : ''));
+      var lbl = (i === 0 ? 'ホスト' : ('席' + (i + 1)));
+      li.appendChild(R.el('span', 'seatrow__n', lbl));
+      if (s) {
+        li.appendChild(R.el('span', 'seatrow__name', s.name || '？'));
+        li.appendChild(R.el('span', 'seatrow__st' + (s.connected ? ' is-on' : ''),
+          s.connected ? '接続中' : '切断'));
+      } else {
+        li.appendChild(R.el('span', 'seatrow__name is-empty', (i < S.netCount) ? 'CPU' : '—'));
+      }
+      ul.appendChild(li);
+    }
+  }
+
+  function netSeatCountUI() {
+    var box = $('netSeatCount');
+    box.replaceChildren();
+    [2, 3, 4].forEach(function (n) {
+      var b = R.el('button', null, n + '人');
+      b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.n = n;
+      b.addEventListener('click', function () {
+        S.netCount = n;
+        Array.prototype.forEach.call(box.children, function (x) {
+          x.setAttribute('aria-checked', (+x.dataset.n === S.netCount) ? 'true' : 'false');
+        });
+        netSeatList(S.netSeats);
+      });
+      b.setAttribute('aria-checked', (n === S.netCount) ? 'true' : 'false');
+      box.appendChild(b);
+    });
+  }
+
+  function netWatchRoom() {
+    Net.onSeats(function (seats) {
+      netSeatList(seats);
+      /* 人が増えたら、席の数を自動で合わせる（ホストのみ） */
+      if (Net.isHost()) {
+        var max = 0;
+        Object.keys(seats).forEach(function (k) { if (seats[k]) max = Math.max(max, +k + 1); });
+        if (max > S.netCount) {
+          S.netCount = Math.min(4, max);
+          netSeatCountUI();
+          netSeatList(seats);
+        }
+      }
+    });
+    Net.onMeta(function (m) {
+      if (!m) return;
+      if (m.phase === 'playing' && !Net.isHost() && S.mode !== 'guest') {
+        $('netdlg').close();
+        guestStart(Net.seat());
+      }
+    });
+    Net.onOnline(function (on) {
+      var b = $('netBadge');
+      b.hidden = false;
+      b.textContent = on ? ('部屋 ' + Net.code()) : '接続が切れています…';
+      b.className = 'netbadge' + (on ? '' : ' is-off');
+    });
+  }
+
+  async function netCreate() {
+    try {
+      netMsg('つないでいます…');
+      var url = Net.setDbUrl($('netDb').value);
+      if (!url) { netMsg('データベースのURLを入れてください（部屋を作る人だけ必要です）', true); return; }
+      await Net.connect(url);
+      var code = await Net.createRoom(myName());
+      S.netCount = 2;
+      netSeatCountUI();
+      $('netCodeBig').textContent = code;
+      $('netHostCtl').hidden = false;
+      $('netWait').hidden = true;
+      netStep(2);
+      netWatchRoom();
+      netMsg('部屋ができました。リンクを送ってください。');
+    } catch (e) {
+      netMsg('作れませんでした：' + (e && e.message ? e.message : e), true);
+    }
+  }
+
+  async function netJoin() {
+    try {
+      netMsg('つないでいます…');
+      var url = Net.setDbUrl($('netDb').value) || Net.getDbUrl();
+      if (!url) { netMsg('リンクから開くか、データベースのURLを入れてください', true); return; }
+      await Net.connect(url);
+      var code = ($('netCode').value || '').trim().toUpperCase();
+      var seat = await Net.joinRoom(code, myName());
+      $('netCodeBig').textContent = code;
+      $('netHostCtl').hidden = true;
+      $('netWait').hidden = false;
+      netStep(2);
+      netWatchRoom();
+      netMsg('入れました。ホストが始めるのを待ちます。');
+    } catch (e) {
+      netMsg('入れませんでした：' + (e && e.message ? e.message : e), true);
+    }
+  }
+
+  async function netStartGame() {
+    try {
+      await Net.setPhase('playing', { startedAt: Date.now() });
+      $('netdlg').close();
+      S.viewN = 0;
+      startGame({ seats: S.netSeats, count: S.netCount });
+    } catch (e) {
+      netMsg('始められませんでした：' + (e && e.message ? e.message : e), true);
+    }
+  }
+
+  function netCopyLink() {
+    var link = Net.shareLink(Net.code());
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(
+        function () { netMsg('リンクをコピーしました。LINEなどに貼って送ってください。'); },
+        function () { netMsg(link); });
+    } else { netMsg(link); }
+  }
+
+  function netShareLink() {
+    var link = Net.shareLink(Net.code());
+    if (navigator.share) {
+      navigator.share({ title: 'テッペンとリーヨ！', text: '合言葉 ' + Net.code(), url: link })
+        .catch(function () { });
+    } else { netCopyLink(); }
+  }
+
+  /* ================================================================
    * 起動
    * ============================================================== */
   function boot() {
     fitStage();
-    global.addEventListener('resize', function () { fitStage(); if (S.game) renderAll(); });
-    global.addEventListener('load', fitStage);
-    requestAnimationFrame(fitStage);
+    function refit() { fitStage(); if (S.game) renderAll(); }
+    global.addEventListener('resize', refit);
+    global.addEventListener('orientationchange', function () { setTimeout(refit, 250); });
+    global.addEventListener('load', refit);
+    /* 起動直後は画面サイズが 0 で返ることがあるので、少し置いてから測り直す */
+    [0, 60, 250, 800].forEach(function (ms) { setTimeout(refit, ms); });
 
     Fx.init($('fx'));
     buildSetup();
@@ -1230,7 +1579,29 @@
     $('btnSim').addEventListener('click', function () { $('setup').close(); $('simdlg').showModal(); });
     $('btnSimRun').addEventListener('click', runSim);
     $('btnSimClose').addEventListener('click', function () { $('simdlg').close(); $('setup').showModal(); });
-    $('btnMenu').addEventListener('click', function () { $('setup').showModal(); });
+
+    /* 設定を開いたら、閉じて試合に戻れるようにする（押し間違え対策） */
+    $('btnMenu').addEventListener('click', function () {
+      $('btnCloseSetup').hidden = !S.game;
+      $('setup').showModal();
+    });
+    $('btnCloseSetup').addEventListener('click', function () { $('setup').close(); });
+
+    /* ---- 通信対戦 ---- */
+    $('btnNet').addEventListener('click', netOpen);
+    $('btnCreateRoom').addEventListener('click', netCreate);
+    $('btnJoinRoom').addEventListener('click', netJoin);
+    $('btnNetStart').addEventListener('click', netStartGame);
+    $('btnCopyLink').addEventListener('click', netCopyLink);
+    $('btnShareLink').addEventListener('click', netShareLink);
+    $('btnNetBack').addEventListener('click', function () {
+      $('netdlg').close();
+      $('btnCloseSetup').hidden = !S.game;
+      $('setup').showModal();
+    });
+    $('netCode').addEventListener('input', function () {
+      this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    });
 
     $('btnLog').addEventListener('click', function () {
       var open = $('logpane').hidden;
@@ -1245,8 +1616,23 @@
       if (S.sel || S.targeting) { S.sel = null; S.targeting = null; renderAll(); }
     });
 
-    $('setup').showModal();
+    /* リンクから開いたときは、そのまま通信対戦の画面へ */
+    var p = Net.urlParams();
+    if (p.room) { netOpen(); }
+    else { $('setup').showModal(); }
   }
+
+  /* 動作確認用の入口。ふだんは使いません（不具合を追うときだけ） */
+  NS.UI = {
+    state: S,
+    guestStart: guestStart,
+    feedView: function (v, ev, prompt) {
+      if (v) { S.gLastN++; S.gQueue.push({ state: v, ev: ev || null }); }
+      if (prompt) { S.gLastRid++; S.gQueue.push({ prompt: { rid: S.gLastRid, req: prompt } }); }
+      return guestDrain();
+    },
+    render: renderAll
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
