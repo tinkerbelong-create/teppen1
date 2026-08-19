@@ -246,8 +246,11 @@
     root.style.pointerEvents = 'none';
   }
 
-  /* ---------------- コインが飛ぶ ---------------- */
-  async function coin(n, total, fromRect, toRect, isMine) {
+  /* ---------------- コインが飛ぶ ----------------
+   * fromRect から toRect へ飛ぶ。toRect は「もらった人」の場所。
+   * who（もらった人の名前）と whyText（もらった理由）を必ず出す。
+   * 誰のコインなのか分からないと、自分が失敗したのに得したように見えてしまうため。 */
+  async function coin(n, total, fromRect, toRect, isMine, who, whyText) {
     if (speed === 0 || n <= 0) return;
     var count = Math.min(n, 5);
     var jobs = [];
@@ -270,8 +273,10 @@
       } else { c.remove(); }
     }
     var label = R.el('div', 'coingain' + (isMine ? ' is-mine' : ''));
-    label.appendChild(R.el('span', 'coingain__n', '＋' + n));
-    label.appendChild(R.el('span', 'coingain__cap', 'イナズマコイン（' + total + '個）'));
+    label.appendChild(R.el('span', 'coingain__who', (who || '') + (isMine ? '（あなた）' : '') + ' に'));
+    label.appendChild(R.el('span', 'coingain__n', 'イナズマコイン ＋' + n));
+    label.appendChild(R.el('span', 'coingain__cap',
+      (whyText ? whyText + '／' : '') + '手持ち ' + total + '個'));
     root.appendChild(label);
     await Promise.all(jobs);
     await hold(320);

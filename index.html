@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>テッペンとリーヨ！ ── テストプレイ</title>
+<title>テッペンとリーヨ！</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Reggae+One&family=Zen+Kaku+Gothic+New:wght@400;700;900&family=Bungee&display=swap" rel="stylesheet">
@@ -14,6 +14,42 @@
 <link rel="stylesheet" href="css/fx.css">
 </head>
 <body>
+
+<!-- ホーム。画面を開いたら、まずここが出る -->
+<div id="home" class="home" hidden>
+  <div class="home__badge">
+    <svg viewBox="0 0 128 128" aria-hidden="true">
+      <circle cx="64" cy="64" r="47" fill="var(--paper)" stroke="var(--ink)" stroke-width="4"/>
+      <polygon points="64,40 81,52 74,72 54,72 47,52" fill="var(--ink)"/>
+      <g stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round">
+        <path d="M64 40 V21"/><path d="M81 52 L99 46"/><path d="M74 72 L85 88"/>
+        <path d="M54 72 L43 88"/><path d="M47 52 L29 46"/>
+      </g>
+      <path d="M74 18 L40 72 H60 L50 114 L92 56 H70 Z"
+            fill="var(--bolt)" stroke="var(--ink)" stroke-width="4" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <h1 class="home__title"><span>テッペンと</span><em>リーヨ！</em></h1>
+  <p class="home__sub">イナズマイレブン カードゲーム</p>
+
+  <div class="home__menu">
+    <button type="button" class="homebtn homebtn--solo" id="btnHomeSolo" aria-label="ひとりで遊ぶ">
+      <b>ひとりで遊ぶ</b><small>設定してCPUと対戦する</small>
+    </button>
+    <button type="button" class="homebtn homebtn--net" id="btnHomeNet" aria-label="みんなで対戦">
+      <b>みんなで対戦</b><small>合言葉かリンクで、それぞれのスマホから</small>
+    </button>
+    <button type="button" class="homebtn homebtn--test" id="btnHomeTest" aria-label="テストプレー">
+      <b>テストプレー</b><small>数値をいじる／CPU同士で何百回も回す</small>
+    </button>
+  </div>
+
+  <div class="home__foot">
+    <a class="tool" href="あそびかた.html" target="_blank" rel="noopener">あそびかた</a>
+    <button type="button" class="tool" id="btnHomeSound" aria-pressed="true">音 オン</button>
+  </div>
+</div>
 
 <!-- 盤面。1440x810 を基準に組み、画面サイズに合わせて全体を拡大縮小する -->
 <div id="stage" class="stage" hidden>
@@ -90,25 +126,50 @@
 </aside>
 
 <!-- 設定 / 開始 -->
-<dialog class="sheet" id="setup">
+<dialog class="sheet" id="setup" data-mode="solo">
   <div class="sheet__inner">
-    <h1 class="sheet__title"><span>テッペンと</span><em>リーヨ！</em></h1>
-    <p class="sheet__lead">紙のカードゲームのテストプレイ用。数値はここで全部いじれます。</p>
+    <h1 class="sheet__title" id="setupTitle"><span>試合の</span><em>したく</em></h1>
+    <p class="sheet__lead" id="setupLead">人数とキャプテンを決めて、キックオフ。</p>
+
+    <fieldset class="grp">
+      <legend>保存したセットアップ</legend>
+      <div class="presets" id="presetList"></div>
+      <div class="netrow">
+        <button type="button" class="btn btn--sub" id="btnPresetSave">いまの設定を保存</button>
+      </div>
+      <p class="grp__note">
+        「この組み合わせが面白かった」という設定に名前をつけて残せます。押すとすぐ反映されます。
+        保存はこの端末の中だけなので、別のスマホやPCには引き継がれません。
+      </p>
+    </fieldset>
 
     <div class="sheet__cols">
       <div>
-        <fieldset class="grp">
+        <fieldset class="grp" data-only="solo test">
           <legend>人数</legend>
           <div class="seg" id="segPlayers" role="radiogroup" aria-label="人数"></div>
           <label class="row"><span>あなたも参加する</span><input type="checkbox" id="optHuman" checked></label>
         </fieldset>
 
-        <fieldset class="grp">
+        <fieldset class="grp" data-only="solo test">
           <legend>あなたのキャプテン（円堂守）</legend>
           <div class="capgrid" id="capGrid"></div>
         </fieldset>
       </div>
 
+      <div>
+        <fieldset class="grp">
+          <legend>音</legend>
+          <label class="row"><span>効果音を鳴らす</span><input type="checkbox" id="optSound" checked></label>
+          <label class="num"><span>音量</span><input type="range" id="optVol" min="0" max="100" value="60"><i></i></label>
+          <p class="grp__note">音は端末ごとに覚えます。</p>
+        </fieldset>
+      </div>
+    </div>
+
+    <details class="adv" id="advBox">
+      <summary class="adv__sum">くわしい設定（カードの枚数・コイン・演出の速さ）</summary>
+      <div class="sheet__cols">
       <div>
         <fieldset class="grp">
           <legend>カードの数</legend>
@@ -142,14 +203,17 @@
             </select><i></i></label>
         </fieldset>
       </div>
-    </div>
+      </div>
+    </details>
 
     <div class="sheet__actions">
-      <button type="button" class="btn btn--go" id="btnStart">1人で遊ぶ（CPU戦）</button>
-      <button type="button" class="btn btn--net" id="btnNet">みんなで遊ぶ（通信対戦）</button>
-      <button type="button" class="btn btn--sub" id="btnSim">CPU同士で回す</button>
+      <button type="button" class="btn btn--go" id="btnStart" data-only="solo">キックオフ</button>
+      <button type="button" class="btn btn--net" id="btnMakeRoom" data-only="host">この設定で部屋を作る</button>
+      <button type="button" class="btn btn--go" id="btnSimOpen" data-only="test">CPU同士で回す</button>
+      <button type="button" class="btn btn--sub" id="btnStartTest" data-only="test">この設定で1試合やってみる</button>
       <a class="btn btn--sub" href="あそびかた.html" target="_blank" rel="noopener">あそびかた</a>
       <button type="button" class="btn btn--sub" id="btnCloseSetup" hidden>閉じる（試合をつづける）</button>
+      <button type="button" class="btn btn--sub" id="btnToHome">ホームにもどる</button>
     </div>
   </div>
 </dialog>
@@ -166,26 +230,35 @@
         <input class="txt" type="text" id="netName" maxlength="8" placeholder="あらい">
       </fieldset>
 
-      <fieldset class="grp" id="netDbBox">
-        <legend>データベースのURL（部屋を作る人だけ・1回だけ）</legend>
+      <fieldset class="grp">
+        <legend>部屋を立てる（ホスト）</legend>
+        <div class="netrow">
+          <button type="button" class="btn btn--go" id="btnCreateRoom">設定して部屋を作る</button>
+        </div>
+        <p class="grp__note">
+          先に試合の設定をします。そのあと合言葉とリンクが出るので、みんなに送ってください。
+          全員そろったらキックオフです。
+        </p>
+      </fieldset>
+
+      <fieldset class="grp">
+        <legend>合言葉で参加する</legend>
+        <div class="netrow">
+          <input class="txt txt--code" type="text" id="netCode" maxlength="4" placeholder="ABCD" autocapitalize="characters">
+          <button type="button" class="btn btn--net" id="btnJoinRoom">入る</button>
+        </div>
+        <p class="grp__note">送られてきたリンクを開くだけでも参加できます。</p>
+      </fieldset>
+
+      <details class="adv" id="netDbBox">
+        <summary class="adv__sum">データベースのURL（部屋を作る人だけ・1回だけ）</summary>
         <input class="txt" type="url" id="netDb" placeholder="https://〇〇-default-rtdb.firebaseio.com">
         <p class="grp__note">
           Firebase の Realtime Database に出ているURLを貼ってください。
           1回貼れば、この端末が覚えます。<strong>参加するだけの人は、ここは空でかまいません。</strong><br>
           手順は「通信対戦の準備.md」に書いてあります。
         </p>
-      </fieldset>
-
-      <fieldset class="grp">
-        <legend>部屋</legend>
-        <div class="netrow">
-          <button type="button" class="btn btn--go" id="btnCreateRoom">部屋を作る</button>
-        </div>
-        <div class="netrow">
-          <input class="txt txt--code" type="text" id="netCode" maxlength="4" placeholder="ABCD" autocapitalize="characters">
-          <button type="button" class="btn btn--net" id="btnJoinRoom">合言葉で入る</button>
-        </div>
-      </fieldset>
+      </details>
     </div>
 
     <div id="netStep2" hidden>
@@ -217,7 +290,7 @@
     </div>
 
     <div class="sheet__actions">
-      <button type="button" class="btn btn--sub" id="btnNetBack">もどる</button>
+      <button type="button" class="btn btn--sub" id="btnNetBack">ホームにもどる</button>
     </div>
     <p class="netmsg" id="netMsg"></p>
   </div>
@@ -231,7 +304,7 @@
     <label class="num"><span>試合数</span><input type="number" id="simN" min="10" max="3000" step="10" value="300"><i>試合</i></label>
     <div class="sheet__actions">
       <button type="button" class="btn btn--go" id="btnSimRun">回す</button>
-      <button type="button" class="btn btn--sub" id="btnSimClose">戻る</button>
+      <button type="button" class="btn btn--sub" id="btnSimClose">設定にもどる</button>
     </div>
     <div class="simprog" id="simProg" hidden><div class="simprog__bar" id="simProgBar"></div></div>
     <div class="simout" id="simOut"></div>
@@ -239,6 +312,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
+<script src="js/se.js"></script>
 <script src="js/net-config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/engine.js"></script>

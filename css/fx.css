@@ -237,13 +237,21 @@
   display:grid; place-items:center; gap:.1rem;
   animation:toastIn .2s var(--ease-kick) both;
 }
+.coingain__who{
+  font-family:var(--f-disp); font-size:1rem; color:var(--line);
+  background:rgba(4,8,12,.72); border-radius:var(--r-chip); padding:.15em 1em;
+}
 .coingain__n{
-  font-family:var(--f-num); font-size:2.4rem; color:var(--bolt); line-height:1;
+  font-family:var(--f-num); font-size:1.7rem; color:var(--bolt); line-height:1;
   -webkit-text-stroke:.16rem var(--ink); paint-order:stroke fill;
   text-shadow:0 .3rem 0 var(--ink);
 }
-.coingain__cap{ font-size:.78rem; color:var(--line); opacity:.85; }
-.coingain.is-mine .coingain__n{ font-size:3rem; }
+.coingain__cap{
+  font-size:.78rem; color:var(--line); opacity:.9;
+  background:rgba(4,8,12,.72); border-radius:var(--r-chip); padding:.15em .9em;
+}
+.coingain.is-mine .coingain__who{ background:rgba(255,206,31,.9); color:#2A1D00; }
+.coingain.is-mine .coingain__n{ font-size:2.2rem; }
 
 /* ================================================================
  * 飛ぶカード・ボール

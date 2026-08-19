@@ -116,6 +116,56 @@ button,input,select{ font:inherit; color:inherit; }
 .tool:hover{ background:rgba(255,255,255,.13); }
 .tool[aria-pressed="true"]{ background:var(--bolt); color:#2A1D00; border-color:var(--bolt); }
 
+/* ---------------- ホーム ----------------
+ * 画面を開いていちばん最初に見えるところ。
+ * ここだけは版面の拡大縮小に乗せず、素直に画面の中央に置く。 */
+.home{
+  position:fixed; inset:0; z-index:40;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:.2rem; padding:5vh 1.2rem; overflow:auto;
+  text-align:center;
+}
+.home[hidden]{ display:none; }
+
+.home__badge{ inline-size:clamp(6rem,15vh,9rem); aspect-ratio:1; filter:drop-shadow(0 .5rem 1.6rem rgba(255,206,31,.28)); }
+.home__badge svg{ inline-size:100%; block-size:100%; }
+
+.home__title{
+  font-family:var(--f-disp); font-weight:400; line-height:1.1;
+  font-size:clamp(2rem,7vh,3.4rem); margin:.5rem 0 0;
+}
+.home__title span{ display:block; font-size:.6em; opacity:.85; }
+.home__title em{ font-style:normal; color:var(--bolt); }
+.home__sub{ font-size:.8rem; letter-spacing:.24em; opacity:.55; margin:.4rem 0 1.6rem; }
+
+.home__menu{ display:grid; gap:.7rem; inline-size:min(26rem,88vw); }
+.homebtn{
+  display:block; inline-size:100%; text-align:start; cursor:pointer;
+  padding:.9rem 1.2rem; border-radius:var(--r-btn);
+  background:rgba(255,255,255,.05); border:.13rem solid rgba(255,255,255,.16);
+  color:var(--line);
+  transition:translate .16s var(--ease-kick), background-color .16s linear, border-color .16s linear;
+}
+.homebtn:hover{ background:rgba(255,255,255,.1); }
+.homebtn:active{ translate:0 .13rem; }
+.homebtn b{ font-family:var(--f-disp); font-weight:400; font-size:1.15rem; display:block; }
+.homebtn small{ font-size:.72rem; opacity:.62; display:block; margin-block-start:.15rem; line-height:1.5; }
+
+.homebtn--solo{
+  background:linear-gradient(180deg,var(--bolt) 0%,var(--bolt-deep) 100%);
+  color:#2A1D00; border-color:transparent; border-radius:var(--r-chip);
+  box-shadow:0 .25rem 0 #8A6300, 0 .6rem 1.4rem rgba(255,206,31,.22);
+}
+.homebtn--solo:hover{ background:linear-gradient(180deg,#FFD84A 0%,var(--bolt-deep) 100%); }
+.homebtn--solo small{ opacity:.72; }
+.homebtn--solo:active{ box-shadow:0 .13rem 0 #8A6300; }
+
+.homebtn--net{ border-color:rgba(47,169,224,.55); }
+.homebtn--net b{ color:#7FD2F5; }
+.homebtn--test{ opacity:.78; }
+
+.home__foot{ display:flex; gap:.6rem; align-items:center; margin-block-start:1.8rem; flex-wrap:wrap; justify-content:center; }
+
 /* ---------------- 設定シート ---------------- */
 .sheet{
   border:0; padding:0; inline-size:min(58rem,94vw);
@@ -178,6 +228,46 @@ button,input,select{ font:inherit; color:inherit; }
 .capgrid small{ font-size:.66rem; opacity:.72; line-height:1.4; display:block; }
 
 .sheet__actions{ display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; margin-block-start:1rem; }
+
+/* 画面の用途（ひとり／ホスト／テスト）で、いらない項目を隠す */
+.sheet[data-mode="solo"] [data-only]:not([data-only~="solo"]),
+.sheet[data-mode="host"] [data-only]:not([data-only~="host"]),
+.sheet[data-mode="test"] [data-only]:not([data-only~="test"]),
+.sheet[data-mode="live"] [data-only]{ display:none; }
+
+/* ---------------- 折りたたみ（くわしい設定） ---------------- */
+.adv{ border-block-start:1px solid rgba(255,255,255,.12); margin:0 0 1rem; padding:.7rem 0 0; }
+.adv__sum{
+  font-family:var(--f-disp); font-size:.95rem; color:var(--bolt);
+  cursor:pointer; list-style:none; padding:.2rem 0;
+}
+.adv__sum::-webkit-details-marker{ display:none; }
+.adv__sum::before{ content:"▸ "; display:inline-block; transition:rotate .15s linear; }
+.adv[open] > .adv__sum::before{ content:"▾ "; }
+.adv > .sheet__cols{ margin-block-start:.8rem; }
+
+/* ---------------- 保存したセットアップ ---------------- */
+.presets{ display:flex; gap:.45rem; flex-wrap:wrap; margin-block-end:.6rem; }
+.preset{
+  display:inline-flex; align-items:center; gap:.4rem;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
+  border-radius:var(--r-chip); padding:.15rem .15rem .15rem .9rem;
+}
+.preset.is-on{ border-color:var(--bolt); background:rgba(255,206,31,.14); }
+.preset__use{
+  background:none; border:0; cursor:pointer; color:inherit;
+  font-family:var(--f-ui); font-size:.84rem; font-weight:700; padding:.4em 0;
+}
+.preset__del{
+  background:rgba(255,255,255,.08); border:0; cursor:pointer; color:var(--line);
+  inline-size:1.7rem; block-size:1.7rem; border-radius:var(--r-chip);
+  font-size:.8rem; line-height:1; opacity:.6;
+}
+.preset__del:hover{ opacity:1; background:rgba(255,138,92,.3); }
+.presets__none{ font-size:.78rem; opacity:.5; }
+
+/* 音量つまみ */
+.num input[type="range"]{ inline-size:9em; padding:0; accent-color:var(--bolt); background:none; border:0; }
 
 .simprog{ block-size:0.4rem; background:rgba(255,255,255,.1); margin-block-start:1rem; }
 .simprog__bar{ block-size:100%; inline-size:0%; background:var(--bolt); transition:inline-size .2s linear; }

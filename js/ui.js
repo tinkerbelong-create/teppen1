@@ -14,6 +14,7 @@
 
   var NS = global.TEPPEN;
   var E = NS.Engine, R = NS.Render, Fx = NS.Fx, DATA = NS.DATA, AI = NS.AI, Sim = NS.Sim, CFG = NS.CONFIG;
+  var SE = NS.SE;
 
   function $(id) { return document.getElementById(id); }
 
@@ -245,6 +246,7 @@
     S.sel = null; S.targeting = null; S.awaitAction = null;
     lastTurn = -1;
     $('logList').replaceChildren();
+    $('home').hidden = true;
     $('stage').hidden = false;
     Fx.clear();
     fitStage();
@@ -256,7 +258,7 @@
       Fx.finish('<div class="finish__word">試合が止まりました</div>' +
         '<div class="finish__sub">' + (err && err.message ? err.message : err) +
         '<br>この文言を作者に伝えてください（' + g.turnCount + '手目）</div>',
-        function () { $('setup').showModal(); });
+        function () { showHome(); });
     });
   }
 
@@ -271,6 +273,46 @@
   function cardElByUid(uid) { return document.querySelector('[data-uid="' + uid + '"]'); }
   function pname(g, pi) { return g.players[pi].name; }
   function teamText(team) { return team.map(function (c) { return c.name; }).join(' ＋ '); }
+
+  /* ---------------- カードの呼び名 ----------------
+   * 記録（ログ）と一言表示で使う。
+   * イナズマイレブンを知らない人が読んでも、選手なのかワザなのか、
+   * ワザならどの種類なのかが分かるように、名前の前に必ず種別を付ける。
+   *   例）シュート技【ツインブースト】／選手【豪炎寺（FW・雷門）】 */
+  function cardLabel(card) {
+    if (!card) return '';
+    if (card.kind === 'tech') return (card.type || '必殺') + '技【' + card.name + '】';
+    if (card.kind === 'ball') return 'ボールカード';
+    if (card.cap) return 'キャプテン【' + card.name + '】';
+    var d = [];
+    if (card.pos) d.push(card.pos);
+    if (card.team) d.push(card.team);
+    return '選手【' + card.name + (d.length ? '（' + d.join('・') + '）' : '') + '】';
+  }
+  /* 演出の一言など、短く出したいとき（チーム名までは出さない） */
+  function cardShort(card) {
+    if (!card) return '';
+    if (card.kind === 'tech') return (card.type || '必殺') + '技【' + card.name + '】';
+    if (card.kind === 'ball') return 'ボールカード';
+    return '選手【' + card.name + '】';
+  }
+  /* ワザに使った選手を「（使った選手：豪炎寺 ＋ 染岡）」の形にする */
+  function teamNote(team) {
+    if (!team || !team.length) return '';
+    return '（使った選手：' + teamText(team) + '）';
+  }
+  /* サイコロの必要な出目 */
+  function needText(dice) {
+    if (!dice || !dice.length) return '';
+    return '必要な出目 ' + dice.join('・');
+  }
+  /* コインをもらった理由 */
+  var COIN_WHY = {
+    react: 'リアクション成功のごほうび',
+    concede: '失点したおわび',
+    effect: 'ワザの効果',
+    play: '手番Aのごほうび'
+  };
 
   async function onEvent(ev, g) {
     if (g !== S.game) return;          /* やり直し前の試合の出来事は捨てる */
@@ -330,6 +372,7 @@
     S.gQueue = []; S.gBusy = false; S.gLastN = -1; S.gLastRid = -1;
     lastTurn = -1;
     $('logList').replaceChildren();
+    $('home').hidden = true;
     $('stage').hidden = false;
     Fx.clear();
     fitStage();
@@ -386,16 +429,19 @@
       case 'turnStart':
         setBanner(pname(g, ev.p) + ' の番');
         S.lastTurnPlayer = ev.p;
+        SE.play('turn');
         if (ev.p !== S.human) await Fx.hold(240);
         break;
 
       case 'play':
+        SE.play('card');
         await Fx.flyCard(rectOf(cardElByUid(ev.card.uid)), rectOf($('piles')), ev.card, 480);
         break;
 
       case 'shootDeclare': {
         var s1 = rectOf(cardElByUid(ev.tech.uid));
         if (s1) await Fx.flyCard(s1, CENTER(), ev.tech, 340);
+        SE.play('cutin');
         await Fx.cutin(ev.tech, teamText(ev.team) + ' → ' + pname(g, ev.target),
           ev.pierce ? '貫通！　素手では止まらない' : null, 1350);
         break;
@@ -404,42 +450,52 @@
       case 'defenseDeclare': {
         var s2 = rectOf(cardElByUid(ev.tech.uid));
         if (s2) await Fx.flyCard(s2, CENTER(), ev.tech, 340);
+        SE.play('cutin');
         await Fx.cutin(ev.tech, teamText(ev.team) + ' → ' + pname(g, ev.target) + ' からボールを狙う', null, 1200);
         break;
       }
 
       case 'catchDeclare':
         if (ev.mode === 'tech') {
+          SE.play('cutin');
           await Fx.cutin(ev.tech, ev.keeper.name + ' が立ちはだかる', null, 1150);
         } else {
-          await Fx.toast(ev.keeper.name + ' の素手キャッチ！（' + R.diceLabel(ev.dice) + ' で成功）', 950);
+          await Fx.toast(pname(g, ev.p) + ' の素手キャッチ！（キーパー：' + ev.keeper.name +
+            '／' + R.diceLabel(ev.dice) + ' が出れば成功）', 1100);
         }
         break;
 
       case 'dribbleDeclare':
+        SE.play('cutin');
         await Fx.cutin(ev.tech, teamText(ev.team) + ' が振り切りにかかる', null, 1150);
         break;
 
       case 'noCatch':
+        SE.play('fail');
         await Fx.toast(ev.reason === 'pierce'
           ? pname(g, ev.p) + ' はキーパー技を持っていない…　貫通シュートは止まらない'
           : pname(g, ev.p) + ' にゴールキーパーがいない！', 1200);
         break;
 
       case 'noDribble':
-        await Fx.toast(pname(g, ev.p) + ' はドリブルで反応できない', 850);
+        SE.play('fail');
+        await Fx.toast(pname(g, ev.p) + ' はドリブル技を出せない', 850);
         break;
 
       case 'dice':
+        SE.play('dice');
         await Fx.dice(ev, pname(g, ev.p));
+        SE.play(ev.ok ? 'diceOk' : 'diceNg');
         break;
 
       case 'goal':
+        SE.play('goal');
         await Fx.goal(pname(g, ev.p), ev.tech.name);
         break;
 
       case 'ball': {
         if (S.prevBall !== ev.to) {
+          SE.play('ball');
           await Fx.flyBall(rectOf(playerEl(S.prevBall)), rectOf(playerEl(ev.to)));
         }
         S.prevBall = ev.to;
@@ -447,42 +503,56 @@
       }
 
       case 'steal':
-        await Fx.toast(pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の伏せ札から1枚うばった', 950);
+        SE.play('steal');
+        await Fx.toast(pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の伏せ札から ' +
+          cardShort(ev.card) + ' をうばった', 1100);
         break;
 
       case 'raid':
-        await Fx.toast('引き抜き！　' + pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の【' + ev.card.name + '】を獲得', 1200);
+        SE.play('steal');
+        await Fx.toast('引き抜き！　' + pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の ' +
+          cardShort(ev.card) + ' を獲得', 1300);
         break;
 
       case 'scout':
-        if (ev.p !== S.human) await Fx.toast(pname(g, ev.p) + ' が場から【' + ev.card.name + '】を拾った', 850);
+        if (ev.p !== S.human) await Fx.toast(pname(g, ev.p) + ' が場から ' + cardShort(ev.card) + ' を拾った', 950);
         break;
 
       case 'fieldToDeck':
-        await Fx.toast('場の【' + ev.card.name + '】を山札に戻した', 900);
+        await Fx.toast('場の ' + cardShort(ev.card) + ' を山札に戻した', 950);
         break;
 
       case 'returnToHand':
-        await Fx.toast('【' + ev.card.name + '】は場に出ず手札に戻る', 1000);
+        await Fx.toast(cardShort(ev.card) + ' は場に出ず手札に戻る', 1050);
         break;
 
       /* 守り切った瞬間。ここがいちばん気持ちよくあってほしいので、専用の全画面演出にする */
       case 'catchResult':
-        if (ev.ok) await Fx.reaction('STOP!', 'とめた！', pname(g, ev.p), 'catch');
+        if (ev.ok) { SE.play('stop'); await Fx.reaction('STOP!', 'とめた！', pname(g, ev.p), 'catch'); }
         break;
 
       case 'dribbleResult':
-        if (ev.ok) await Fx.reaction('BREAK!', 'ぬけた！', pname(g, ev.p), 'dribble');
-        else await Fx.toast('つかまった！　ドリブルは山札へ', 950);
+        if (ev.ok) { SE.play('breakthrough'); await Fx.reaction('BREAK!', 'ぬけた！', pname(g, ev.p), 'dribble'); }
+        else {
+          SE.play('fail');
+          await Fx.toast('つかまった！　' + cardShort(ev.dribbleToDeck) + ' は山札へ', 1050);
+        }
         break;
 
       case 'defenseResult':
-        await Fx.toast('ボールを奪った！', 850);
+        await Fx.toast(pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' からボールを奪った！', 950);
         break;
 
-      case 'coin':
-        await Fx.coin(ev.n, ev.total, rectOf(playerEl(ev.p)), rectOf($('counters')), ev.p === S.human);
+      /* コインは「もらった人」のところへ飛ばす。
+       * 以前はいつも自分の手元へ飛んでいたので、失点したのに得したように見えていた。 */
+      case 'coin': {
+        var mine = (ev.p === S.human);
+        var toEl = mine ? $('counters') : playerEl(ev.p);
+        SE.play('coin');
+        await Fx.coin(ev.n, ev.total, CENTER(), rectOf(toEl), mine,
+          pname(g, ev.p), COIN_WHY[ev.why] || '');
         break;
+      }
 
       /* 「間の人を飛ばして自分の番になった」ことを、はっきり出す */
       case 'streak': {
@@ -492,11 +562,13 @@
         var msg = skipped.length
           ? skipped.join('・') + ' を飛ばして、' + pname(g, ev.p) + ' の番！'
           : '守り切った！　' + pname(g, ev.p) + ' の番！';
+        SE.play('takeover');
         await Fx.takeover(msg, ev.n);
         break;
       }
 
       case 'extraTurn':
+        SE.play('takeover');
         await Fx.takeover(pname(g, ev.p) + ' は もう一度 自分の番！', 0);
         break;
 
@@ -505,7 +577,7 @@
         break;
 
       case 'dig':
-        await Fx.toast('【' + ev.kept.name + '】を手札に。残りは場へ', 900);
+        await Fx.toast(cardShort(ev.kept) + ' を手札に。残りは場へ', 950);
         break;
 
       case 'pass':
@@ -521,37 +593,126 @@
   function addLog(ev, g) {
     var list = $('logList'), txt = null, hi = false;
     switch (ev.k) {
-      case 'start': txt = 'キックオフ。ボールを引いたのは ' + pname(g, ev.ball); hi = true; break;
+      case 'start':
+        txt = 'キックオフ。ボールカードを引いたのは ' + pname(g, ev.ball); hi = true; break;
+
       case 'turnStart':
         if (ev.turn !== lastTurn) {
           lastTurn = ev.turn;
           list.appendChild(R.el('li', 'turnsep', '― ' + (ev.turn + 1) + '手目 ―'));
         }
         txt = pname(g, ev.p) + ' の番'; break;
-      case 'play': txt = pname(g, ev.p) + ' が【' + ev.card.name + '】を場に出して1枚引いた'; break;
-      case 'shootDeclare': txt = pname(g, ev.p) + ' → ' + pname(g, ev.target) + '　シュート【' + ev.tech.name + '】' + (ev.pierce ? '［貫通］' : ''); hi = true; break;
-      case 'defenseDeclare': txt = pname(g, ev.p) + ' → ' + pname(g, ev.target) + '　ディフェンス【' + ev.tech.name + '】'; break;
-      case 'catchDeclare': txt = '　' + pname(g, ev.p) + ' が ' + (ev.mode === 'bare' ? '素手キャッチ（' + ev.keeper.name + '）' : 'キャッチ【' + ev.tech.name + '】') + ' 出目' + R.diceLabel(ev.dice); break;
-      case 'dribbleDeclare': txt = '　' + pname(g, ev.p) + ' がドリブル【' + ev.tech.name + '】 出目' + R.diceLabel(ev.dice); break;
-      case 'dice': txt = '　サイコロ ' + ev.roll + ' → ' + (ev.ok ? '成功' : '失敗'); break;
-      case 'noCatch': txt = '　' + pname(g, ev.p) + ' は反応できない' + (ev.reason === 'pierce' ? '（貫通）' : '（GKなし）'); break;
-      case 'goal': txt = '⚡ ' + pname(g, ev.p) + ' のゴール！【' + ev.tech.name + '】'; hi = true; break;
-      case 'score': txt = '　' + pname(g, ev.p) + '：' + ev.score + '点'; break;
-      case 'ball': txt = '　ボールは ' + pname(g, ev.to) + ' へ'; break;
-      case 'draw': if (ev.n) txt = '　' + pname(g, ev.p) + ' が' + ev.n + '枚引いた'; break;
-      case 'steal': txt = '　' + pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の伏せ札を1枚うばった'; break;
-      case 'scout': txt = '　' + pname(g, ev.p) + ' が場から【' + ev.card.name + '】を' + (ev.free ? '無料で' : 'コイン1で') + '拾った'; break;
-      case 'raid': txt = pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' から【' + ev.card.name + '】を引き抜いた（コイン2）'; hi = true; break;
-      case 'fieldToDeck': txt = '　場の【' + ev.card.name + '】を山札へ'; break;
-      case 'returnToHand': txt = '　【' + ev.card.name + '】は手札に戻った'; break;
-      case 'catchResult': txt = ev.ok ? '　キャッチ成功。シュートは山札へ' : '　キャッチ失敗' + (ev.catchToDeck ? '。キャッチカードは山札へ' : ''); break;
-      case 'coin': txt = '　' + pname(g, ev.p) + ' がコイン' + (ev.n > 0 ? '+' : '') + ev.n + '個（手持ち' + ev.total + '）'; break;
-      case 'streak': txt = ev.n >= 2 ? '　' + ev.n + '連続で守り切った！' : null; hi = ev.n >= 2; break;
-      case 'extraTurn': txt = '　' + pname(g, ev.p) + ' はもう一度自分の手番'; hi = true; break;
-      case 'dig': txt = '　山札を掘って【' + ev.kept.name + '】を手札に、残りは場へ'; break;
-      case 'dribbleResult': txt = ev.ok ? '　振り切り成功。ディフェンスは山札へ' : '　振り切り失敗。ドリブルは山札へ'; break;
-      case 'defenseResult': txt = '　' + pname(g, ev.p) + ' がボールを奪った'; break;
-      case 'pass': txt = pname(g, ev.p) + ' はパス'; break;
+
+      case 'play':
+        txt = pname(g, ev.p) + ' が ' + cardLabel(ev.card) + ' を場に出して、山札から1枚引いた'; break;
+
+      case 'shootDeclare':
+        txt = pname(g, ev.p) + ' が ' + pname(g, ev.target) + ' に ' + cardLabel(ev.tech) + ' を撃った'
+          + teamNote(ev.team) + (ev.pierce ? '［貫通：素手では止まらない］' : ''); hi = true; break;
+
+      case 'defenseDeclare':
+        txt = pname(g, ev.p) + ' が ' + pname(g, ev.target) + ' に ' + cardLabel(ev.tech) + ' をしかけた'
+          + teamNote(ev.team); break;
+
+      case 'catchDeclare':
+        txt = '　' + pname(g, ev.p) + ' が '
+          + (ev.mode === 'bare'
+            ? '素手でキャッチしにいった（キーパー：' + ev.keeper.name + '）'
+            : cardLabel(ev.tech) + ' で止めにいった（キーパー：' + ev.keeper.name + '）')
+          + '　' + needText(ev.dice); break;
+
+      case 'dribbleDeclare':
+        txt = '　' + pname(g, ev.p) + ' が ' + cardLabel(ev.tech) + ' で振り切りにいった'
+          + teamNote(ev.team) + '　' + needText(ev.dice); break;
+
+      case 'dice':
+        txt = '　' + pname(g, ev.p) + ' のサイコロ ' + ev.roll + ' → '
+          + (ev.ok ? '成功' : '失敗') + '（' + needText(ev.need) + '）'; break;
+
+      case 'noCatch':
+        txt = '　' + pname(g, ev.p) + ' はキャッチできない'
+          + (ev.reason === 'pierce' ? '（貫通シュートなので素手では止まらない）' : '（ゴールキーパーがいない）'); break;
+
+      case 'noDribble':
+        txt = '　' + pname(g, ev.p) + ' はドリブル技を出せない'; break;
+
+      case 'goal':
+        txt = '⚡ ' + pname(g, ev.p) + ' が ' + pname(g, ev.conceder) + ' から ' + cardLabel(ev.tech) + ' でゴール！'
+          + teamNote(ev.team); hi = true; break;
+
+      case 'score':
+        txt = '　' + pname(g, ev.p) + ' は ' + ev.score + '点になった'; break;
+
+      case 'ball':
+        txt = '　ボールは ' + pname(g, ev.to) + ' へ'; break;
+
+      case 'draw':
+        if (ev.n) txt = '　' + pname(g, ev.p) + ' が山札から' + ev.n + '枚引いた'; break;
+
+      case 'steal':
+        txt = '　' + pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' の伏せ札から '
+          + cardLabel(ev.card) + ' をうばった'; break;
+
+      case 'stealFail':
+        txt = '　' + pname(g, ev.from) + ' の伏せ札は空だった'; break;
+
+      case 'scout':
+        txt = '　' + pname(g, ev.p) + ' が場から ' + cardLabel(ev.card) + ' を拾った'
+          + (ev.free ? '（無料）' : '（イナズマコイン1個）'); break;
+
+      case 'raid':
+        txt = pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' から ' + cardLabel(ev.card) + ' を引き抜いた'
+          + (ev.free ? '（無料）' : '（イナズマコイン2個）'); hi = true; break;
+
+      case 'fieldToDeck':
+        txt = '　' + pname(g, ev.p) + ' が場の ' + cardLabel(ev.card) + ' を山札にもどした'; break;
+
+      case 'returnToHand':
+        txt = '　' + cardLabel(ev.card) + ' は場に出ず、' + pname(g, ev.p) + ' の手札にもどった'; break;
+
+      case 'toField':
+        txt = '　' + cardLabel(ev.card) + ' は場へ'; break;
+
+      case 'catchResult':
+        txt = ev.ok
+          ? '　' + pname(g, ev.p) + ' のキャッチ成功！ ' + cardLabel(ev.techToDeck) + ' は山札へ、'
+              + (ev.catchToField ? cardLabel(ev.catchToField) + ' は場へ' : '素手だったのでカードは減らない')
+          : '　' + pname(g, ev.p) + ' のキャッチ失敗'
+              + (ev.catchToDeck ? '。' + cardLabel(ev.catchToDeck) + ' は山札へ' : '');
+        hi = !!ev.ok; break;
+
+      case 'dribbleResult':
+        txt = ev.ok
+          ? '　' + pname(g, ev.p) + ' の振り切り成功！ ' + cardLabel(ev.dribbleToField) + ' は場へ、'
+              + cardLabel(ev.defenseToDeck) + ' は山札へ'
+          : '　' + pname(g, ev.p) + ' の振り切り失敗。' + cardLabel(ev.dribbleToDeck) + ' は山札へ、'
+              + cardLabel(ev.defenseToField) + ' は場へ';
+        hi = !!ev.ok; break;
+
+      case 'defenseResult':
+        txt = '　' + pname(g, ev.p) + ' が ' + pname(g, ev.from) + ' からボールを奪った'; break;
+
+      case 'coin':
+        txt = '　' + pname(g, ev.p) + ' がイナズマコインを' + (ev.n > 0 ? '+' : '') + ev.n + '個もらった'
+          + (COIN_WHY[ev.why] ? '（' + COIN_WHY[ev.why] + '）' : '')
+          + '　手持ち' + ev.total + '個'; break;
+
+      case 'streak':
+        txt = ev.n >= 2 ? '　' + pname(g, ev.p) + ' が' + ev.n + '連続で守り切った！' : null;
+        hi = ev.n >= 2; break;
+
+      case 'extraTurn':
+        txt = '　' + pname(g, ev.p) + ' はもう一度自分の手番'; hi = true; break;
+
+      case 'digReveal':
+        txt = '　' + pname(g, ev.p) + ' が山札の上 ' + ev.cards.length + ' 枚を見た'; break;
+
+      case 'dig':
+        txt = '　' + pname(g, ev.p) + ' が ' + cardLabel(ev.kept) + ' を手札に入れ、残りは場へ'; break;
+
+      case 'pass':
+        txt = pname(g, ev.p) + ' はできることがないのでパス'; break;
+
       case 'end':
         txt = ev.winner == null ? '引き分け' : pname(g, ev.winner) + ' の勝ち（' +
           ({ score: '規定点', timeup: 'タイムアップ・最多得点', timeupFirst: 'タイムアップ・先に得点', stuck: '進行停止' }[ev.reason] || ev.reason) + '）';
@@ -1246,11 +1407,13 @@
     var word = (g.winner == null) ? '引き分け'
       : (g.winner === S.human ? 'あなたの勝ち！' : g.players[g.winner].name + ' の勝ち');
 
+    SE.play((g.winner != null && g.winner === S.human) ? 'win' : 'lose');
+
     Fx.finish(
       '<div class="finish__word">' + word + '</div>' +
       '<div class="finish__scores">' + scores + '</div>' +
       '<div class="finish__sub">' + reason + '　／　' + g.turnCount + '手　／　山札のこり ' + g.deck.length + '枚</div>',
-      function () { $('setup').showModal(); });
+      function () { showHome(); });
   }
 
   /* ================================================================
@@ -1415,7 +1578,8 @@
   }
 
   function netOpen() {
-    $('setup').close();
+    $('home').hidden = true;
+    if ($('setup').open) $('setup').close();
     var p = Net.urlParams();
     if (p.db) Net.setDbUrl(p.db);
     $('netDb').value = Net.getDbUrl();
@@ -1493,11 +1657,21 @@
     });
   }
 
+  /* 設定シートの「この設定で部屋を作る」から呼ばれる。
+   * 設定シートを閉じて通信対戦の画面に戻し、そこで部屋を立てる。 */
   async function netCreate() {
+    if ($('setup').open) $('setup').close();
+    $('home').hidden = true;
+    if (!$('netdlg').open) $('netdlg').showModal();
+    netStep(1);
     try {
       netMsg('つないでいます…');
       var url = Net.setDbUrl($('netDb').value);
-      if (!url) { netMsg('データベースのURLを入れてください（部屋を作る人だけ必要です）', true); return; }
+      if (!url) {
+        netMsg('データベースのURLを入れてください（部屋を作る人だけ必要です）。' +
+          'この画面のいちばん下「データベースのURL」を開いて貼ってください。', true);
+        return;
+      }
       await Net.connect(url);
       var code = await Net.createRoom(myName());
       S.netCount = 2;
@@ -1561,6 +1735,194 @@
   }
 
   /* ================================================================
+   * ホームと、画面の行き来
+   *
+   * 画面は3つの入口に分かれている。
+   *   ひとりで遊ぶ（solo） … 設定してCPU戦
+   *   みんなで対戦（host/guest） … 合言葉とリンクで集まる
+   *   テストプレー（test） … 数値をいじる／CPU同士で回す
+   * 設定シートは1枚を使い回し、data-mode で出すものを変えている。
+   * ============================================================== */
+  function closeDialogs() {
+    ['setup', 'netdlg', 'simdlg'].forEach(function (id) {
+      var d = $(id);
+      if (d && d.open) { try { d.close(); } catch (e) { } }
+    });
+  }
+
+  function showHome() {
+    if (S.game) { S.game.aborted = true; S.game = null; }
+    S.mode = 'cpu';
+    closeDialogs();
+    Fx.clear();
+    $('stage').hidden = true;
+    $('logpane').hidden = true;
+    $('btnLog').setAttribute('aria-pressed', 'false');
+    $('netBadge').hidden = true;
+    $('home').hidden = false;
+    syncSoundBtn();
+  }
+
+  var SETUP_TEXT = {
+    solo: ['<span>試合の</span><em>したく</em>', '人数とキャプテンを決めて、キックオフ。'],
+    host: ['<span>部屋の</span><em>したく</em>', 'この設定で部屋を作ります。合言葉とリンクは、このあと出ます。'],
+    test: ['<span>テスト</span><em>プレー</em>', '数値をいじって試す画面。CPU同士で何百回も回して、結果を数字で見られます。'],
+    live: ['<span>試合中の</span><em>設定</em>', '音や演出の速さを変えられます。']
+  };
+
+  function openSetup(mode) {
+    var dlg = $('setup');
+    $('home').hidden = true;
+    dlg.dataset.mode = mode;
+    $('advBox').open = (mode === 'test');
+    var t = SETUP_TEXT[mode] || SETUP_TEXT.solo;
+    $('setupTitle').innerHTML = t[0];
+    $('setupLead').textContent = t[1];
+    $('btnCloseSetup').hidden = !S.game;
+    renderPresets();
+    if (!dlg.open) dlg.showModal();
+  }
+
+  /* ================================================================
+   * 保存したセットアップ（プリセット）
+   *
+   * 「この組み合わせが面白かった」を名前つきで残せるようにする。
+   * 保存先はこの端末の中だけ（localStorage）。別の端末には引き継がれない。
+   * ============================================================== */
+  var PRESET_KEY = 'teppen.presets';
+
+  function loadPresets() {
+    try {
+      var a = JSON.parse(localStorage.getItem(PRESET_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function storePresets(a) {
+    try { localStorage.setItem(PRESET_KEY, JSON.stringify(a)); } catch (e) { }
+  }
+
+  /* いまの設定を、まるごとひとかたまりにする */
+  function currentPreset() {
+    var o = readSetup();
+    return {
+      playerCount: S.playerCount,
+      humanPlays: $('optHuman').checked,
+      captain: S.myCap,
+      handSize: o.handSize, winScore: o.winScore,
+      techCopies: o.techCopies, charCopies: o.charCopies,
+      roster: o.roster, coin: o.coin,
+      speed: parseFloat($('optSpeed').value)
+    };
+  }
+
+  function applyPreset(d) {
+    if (!d) return;
+    if (d.playerCount) S.playerCount = d.playerCount;
+    if (d.captain) S.myCap = d.captain;
+    $('optHuman').checked = (d.humanPlays !== false);
+    if (d.handSize != null) $('optHand').value = d.handSize;
+    if (d.winScore != null) $('optWin').value = d.winScore;
+    if (d.techCopies != null) $('optTech').value = d.techCopies;
+    if (d.charCopies != null) $('optChar').value = d.charCopies;
+    if (d.roster) $('optRoster').value = d.roster;
+    var c = d.coin || {};
+    if (c.start != null) $('optCoinStart').value = c.start;
+    if (c.onReact != null) $('optCoinReact').value = c.onReact;
+    if (c.onReactStreak != null) $('optCoinStreak').value = c.onReactStreak;
+    if (c.onConcede != null) $('optCoinConcede').value = c.onConcede;
+    if (c.onPlay != null) $('optCoinPlay').value = c.onPlay;
+    if (c.cap != null) $('optCoinCap').value = c.cap;
+    if (d.speed != null) {
+      $('optSpeed').value = String(d.speed);
+      S.speed = d.speed; Fx.setSpeed(S.speed);
+    }
+    syncSetup();
+    renderPresets();
+  }
+
+  function renderPresets() {
+    var box = $('presetList');
+    if (!box) return;
+    box.replaceChildren();
+    var list = loadPresets();
+    if (!list.length) {
+      box.appendChild(R.el('span', 'presets__none', 'まだありません。設定を決めたら「いまの設定を保存」を押してください。'));
+      return;
+    }
+    var now = JSON.stringify(currentPreset());
+    list.forEach(function (p, i) {
+      var same = (JSON.stringify(p.data) === now);
+      var chip = R.el('div', 'preset' + (same ? ' is-on' : ''));
+
+      var use = R.el('button', 'preset__use', p.name);
+      use.type = 'button';
+      use.title = 'この設定にする';
+      use.addEventListener('click', function () { applyPreset(p.data); });
+      chip.appendChild(use);
+
+      var del = R.el('button', 'preset__del', '×');
+      del.type = 'button';
+      del.title = '消す';
+      del.addEventListener('click', function () {
+        if (!global.confirm('「' + p.name + '」を消しますか？')) return;
+        var a = loadPresets();
+        a.splice(i, 1);
+        storePresets(a);
+        renderPresets();
+      });
+      chip.appendChild(del);
+
+      box.appendChild(chip);
+    });
+  }
+
+  function savePresetNow() {
+    var list = loadPresets();
+    var name = global.prompt('この設定に名前をつけてください', 'セットアップ' + (list.length + 1));
+    if (name == null) return;
+    name = String(name).trim().slice(0, 20);
+    if (!name) return;
+    var data = currentPreset();
+    var hit = -1;
+    list.forEach(function (p, i) { if (p.name === name) hit = i; });
+    if (hit >= 0) {
+      if (!global.confirm('同じ名前があります。上書きしますか？')) return;
+      list[hit] = { name: name, data: data };
+    } else {
+      list.push({ name: name, data: data });
+    }
+    storePresets(list);
+    renderPresets();
+  }
+
+  /* ================================================================
+   * 音の設定
+   * ============================================================== */
+  function syncSoundBtn() {
+    var on = SE.isOn();
+    var b = $('btnHomeSound');
+    if (b) {
+      b.textContent = on ? '音 オン' : '音 オフ';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if ($('optSound')) $('optSound').checked = on;
+  }
+
+  function buildSound() {
+    var cb = $('optSound'), rg = $('optVol');
+    cb.checked = SE.isOn();
+    rg.value = Math.round(SE.volume() * 100);
+    cb.addEventListener('change', function () {
+      SE.setOn(cb.checked);
+      syncSoundBtn();
+      if (cb.checked) SE.play('coin');
+    });
+    rg.addEventListener('input', function () { SE.setVolume((+rg.value || 0) / 100); });
+    rg.addEventListener('change', function () { SE.play('coin'); });
+    syncSoundBtn();
+  }
+
+  /* ================================================================
    * 起動
    * ============================================================== */
   function boot() {
@@ -1574,31 +1936,55 @@
 
     Fx.init($('fx'));
     buildSetup();
+    buildSound();
 
-    $('btnStart').addEventListener('click', function () { $('setup').close(); startGame(); });
-    $('btnSim').addEventListener('click', function () { $('setup').close(); $('simdlg').showModal(); });
+    /* さわった音。1か所でまとめて面倒を見る */
+    document.addEventListener('pointerdown', function (e) {
+      SE.unlock();
+      var t = e.target;
+      if (t && t.closest && t.closest('.btn,.tool,.homebtn,.seg button,.capgrid button,.card,.preset__use,.preset__del')) {
+        SE.play('tap');
+      }
+    }, true);
+
+    /* ---- ホーム ---- */
+    $('btnHomeSolo').addEventListener('click', function () { SE.play('press'); openSetup('solo'); });
+    $('btnHomeNet').addEventListener('click', function () { SE.play('press'); netOpen(); });
+    $('btnHomeTest').addEventListener('click', function () { SE.play('press'); openSetup('test'); });
+    $('btnHomeSound').addEventListener('click', function () {
+      SE.setOn(!SE.isOn());
+      syncSoundBtn();
+      if (SE.isOn()) SE.play('coin');
+    });
+
+    /* ---- 設定シート ---- */
+    $('btnStart').addEventListener('click', function () { SE.play('press'); $('setup').close(); startGame(); });
+    $('btnStartTest').addEventListener('click', function () { $('setup').close(); startGame(); });
+    $('btnSimOpen').addEventListener('click', function () { $('setup').close(); $('simdlg').showModal(); });
+    $('btnMakeRoom').addEventListener('click', netCreate);
+    $('btnToHome').addEventListener('click', showHome);
+    $('btnPresetSave').addEventListener('click', savePresetNow);
+
     $('btnSimRun').addEventListener('click', runSim);
-    $('btnSimClose').addEventListener('click', function () { $('simdlg').close(); $('setup').showModal(); });
+    $('btnSimClose').addEventListener('click', function () { $('simdlg').close(); openSetup('test'); });
 
-    /* 設定を開いたら、閉じて試合に戻れるようにする（押し間違え対策） */
+    /* 試合中の「設定」。閉じて試合に戻れるようにする（押し間違え対策）。
+     * 通信対戦の最中はやり直しボタンを出さない（相手の試合まで壊れるため） */
     $('btnMenu').addEventListener('click', function () {
-      $('btnCloseSetup').hidden = !S.game;
-      $('setup').showModal();
+      openSetup(S.mode === 'cpu' ? 'solo' : 'live');
     });
     $('btnCloseSetup').addEventListener('click', function () { $('setup').close(); });
 
     /* ---- 通信対戦 ---- */
-    $('btnNet').addEventListener('click', netOpen);
-    $('btnCreateRoom').addEventListener('click', netCreate);
+    $('btnCreateRoom').addEventListener('click', function () {
+      $('netdlg').close();
+      openSetup('host');
+    });
     $('btnJoinRoom').addEventListener('click', netJoin);
     $('btnNetStart').addEventListener('click', netStartGame);
     $('btnCopyLink').addEventListener('click', netCopyLink);
     $('btnShareLink').addEventListener('click', netShareLink);
-    $('btnNetBack').addEventListener('click', function () {
-      $('netdlg').close();
-      $('btnCloseSetup').hidden = !S.game;
-      $('setup').showModal();
-    });
+    $('btnNetBack').addEventListener('click', showHome);
     $('netCode').addEventListener('input', function () {
       this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
     });
@@ -1616,10 +2002,10 @@
       if (S.sel || S.targeting) { S.sel = null; S.targeting = null; renderAll(); }
     });
 
-    /* リンクから開いたときは、そのまま通信対戦の画面へ */
+    /* リンクから開いたときは、ホームを飛ばして通信対戦の画面へ */
     var p = Net.urlParams();
     if (p.room) { netOpen(); }
-    else { $('setup').showModal(); }
+    else { showHome(); }
   }
 
   /* 動作確認用の入口。ふだんは使いません（不具合を追うときだけ） */
