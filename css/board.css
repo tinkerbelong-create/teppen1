@@ -153,26 +153,38 @@
 .hand__empty{ font-size:.8rem; opacity:.45; }
 
 /* ---------------- 中央バナー ---------------- */
+/* 手番の案内。場の山や選手に重ならないよう、場の左の空いた欄に出す
+ * （以前は中央に出していて、ディフェンス・キャッチの山の名前を隠していた） */
 .banner{
-  position:absolute; inset-inline:0; inset-block-start:15.5rem;
+  position:absolute; inset-inline-start:1rem; inset-block-start:18.9rem;
+  inline-size:6.8rem;
   z-index:25; text-align:center; pointer-events:none;
-  display:flex; flex-direction:column; align-items:center; gap:.4rem;
+  display:flex; flex-direction:column; align-items:stretch; gap:.35rem;
 }
 .banner[hidden]{ display:none; }
-.banner span{
-  display:inline-block;
-  font-family:var(--f-disp); font-size:1.05rem;
-  background:rgba(8,14,20,.9); color:var(--bolt);
-  border-block:0.13rem solid var(--bolt);
-  padding:.4em 1.5em;
-  box-shadow:0 0.6rem 1.8rem rgba(0,0,0,.6);
+.banner__text{
+  display:grid; gap:.15rem;
+  font-family:var(--f-disp);
+  background:rgba(8,14,20,.92); color:var(--bolt);
+  border:0.13rem solid var(--bolt); border-radius:var(--r-card);
+  padding:.45em .4em;
+  box-shadow:0 0.4rem 1.2rem rgba(0,0,0,.5);
+  animation:bannerPulse 1.6s ease-in-out infinite;
 }
+.banner__text b{ font-weight:400; font-size:.86rem; line-height:1.3; white-space:nowrap; }
+.banner__text small{ font-family:var(--f-ui); font-size:.62rem; color:var(--line); opacity:.85; line-height:1.45; }
+.banner__text small:empty{ display:none; }
+@keyframes bannerPulse{
+  0%,100%{ box-shadow:0 0.4rem 1.2rem rgba(0,0,0,.5), 0 0 0 0 rgba(255,206,31,.45); }
+  50%    { box-shadow:0 0.4rem 1.2rem rgba(0,0,0,.5), 0 0 0 .35rem rgba(255,206,31,0); }
+}
+@media (prefers-reduced-motion: reduce){ .banner__text{ animation:none; } }
 .banner__back{
   pointer-events:auto; cursor:pointer;
   font-family:var(--f-disp); font-size:.85rem;
   background:var(--steel); color:var(--line); border:0;
-  border-radius:var(--r-chip); padding:.5em 1.6em;
-  min-block-size:2.75rem;                 /* 指で押せる大きさ */
+  border-radius:var(--r-chip); padding:.4em .6em;
+  min-block-size:2.4rem;                  /* 指で押せる大きさ */
   box-shadow:0 .19rem 0 #16232E, 0 .5rem 1rem rgba(0,0,0,.5);
 }
 .banner__back[hidden]{ display:none; }
@@ -238,11 +250,14 @@
 .chooser__title{ font-family:var(--f-disp); font-size:1.35rem; margin:0 0 .2rem; font-weight:400; }
 .chooser__sub{ font-size:.85rem; opacity:.78; margin:0 0 .6rem; line-height:1.6; }
 .chooser__body{ display:flex; gap:1.2rem; align-items:flex-start; min-block-size:0; flex:1 1 auto; }
-.chooser__incoming{ flex:0 0 auto; }
+.chooser__incoming{ flex:0 0 auto; display:grid; gap:.3rem; align-content:start; }
+.chooser__opts{ flex:1 1 auto; min-inline-size:0; display:grid; gap:.3rem; align-content:start; }
+/* 「相手の技」「あなたの受け方」の見出し */
+.chooser__cap{ font-size:.72rem; font-weight:700; letter-spacing:.08em; color:var(--bolt); opacity:.9; }
 .chooser__incoming:empty{ display:none; }
 .chooser__incoming .tcard{ --cw:18rem; cursor:default; }
 .chooser__cards{
-  flex:1 1 auto; min-inline-size:0;
+  min-inline-size:0;
   display:flex; flex-wrap:wrap; gap:.7rem; align-content:flex-start;
   overflow-y:auto; overscroll-behavior:contain; max-block-size:60vh;
   padding:.2rem;
@@ -270,11 +285,15 @@
 .stage[data-mode="tall"] .hud{ padding:0 .5rem; gap:.4rem; }
 .stage[data-mode="tall"] .hud__brand{ display:none; }
 .stage[data-mode="tall"] .hud__scores{ gap:.25rem; }
-.stage[data-mode="tall"] .pscore{ flex:0 1 4.6rem; padding:.14rem .3rem; gap:0 .25rem; }
+.stage[data-mode="tall"] .pscore{ flex:1 1 5.4rem; padding:.14rem .3rem; gap:0 .25rem; }
 .stage[data-mode="tall"] .pscore__n{ font-size:1rem; }
 .stage[data-mode="tall"] .pscore__name{ font-size:.6rem; }
 .stage[data-mode="tall"] .pscore__meta{ display:none; }
+/* 縦持ちでは得点欄のボール印を外す（名前が切れるため。ボールは相手欄と手札の横にも出ている） */
+.stage[data-mode="tall"] .pscore__ball{ display:none; }
 .stage[data-mode="tall"] .tool{ font-size:.62rem; padding:.4em .7em; }
+/* 縦持ちでは「あそびかた」を上の欄から外す（得点欄の名前が切れるため）。設定画面からは開ける */
+.stage[data-mode="tall"] #btnRules{ display:none; }
 
 .stage[data-mode="tall"] .bench{ padding:.28rem .5rem .3rem; gap:.2rem; }
 .stage[data-mode="tall"] .bench--them{ gap:.3rem; }
@@ -300,8 +319,15 @@
 .stage[data-mode="tall"] .handrow{ padding:.3rem .5rem .4rem; gap:.35rem; }
 .stage[data-mode="tall"] .handrow__side{ inline-size:1.6rem; flex-direction:column; gap:.3rem; }
 .stage[data-mode="tall"] .ballmark{ inline-size:1.5rem; block-size:1.5rem; font-size:.9rem; }
-.stage[data-mode="tall"] .banner{ inset-block-start:11rem; }
-.stage[data-mode="tall"] .banner span{ font-size:.85rem; padding:.35em 1em; }
+/* 縦持ち：山札・コインの右の空いた欄に出す */
+.stage[data-mode="tall"] .banner{
+  inset-block-start:16.55rem; inset-inline-start:8rem; inset-inline-end:.5rem; inline-size:auto;
+  flex-direction:row; align-items:center;
+}
+.stage[data-mode="tall"] .banner__text{ flex:1 1 auto; padding:.3em .5em; gap:0; }
+.stage[data-mode="tall"] .banner__text b{ font-size:.8rem; }
+.stage[data-mode="tall"] .banner__text small{ font-size:.55rem; }
+.stage[data-mode="tall"] .banner__back{ flex:0 0 auto; min-block-size:2.2rem; padding:.3em .9em; font-size:.72rem; }
 
 /* 場の山（縦持ち用の小さい札） */
 .pilechip{
@@ -319,6 +345,18 @@
 .pilechip.is-empty{ opacity:.4; }
 .pilechip.is-live{ border-color:var(--bolt); box-shadow:0 0 .6rem rgba(255,206,31,.6); }
 .pilechip.is-live .pilechip__n{ color:#fff; }
+
+/* 縦持ちの選択パネル：横に並べるとはみ出すので、相手の技の下に受け方を並べる */
+body[data-layout="tall"] .chooser__panel{ padding:.8rem .8rem 1rem; }
+body[data-layout="tall"] .chooser__title{ font-size:1.1rem; }
+body[data-layout="tall"] .chooser__sub{ font-size:.75rem; margin-block-end:.4rem; }
+body[data-layout="tall"] .chooser__body{ flex-direction:column; gap:.6rem; overflow-y:auto; }
+body[data-layout="tall"] .chooser__incoming .tcard{ --cw:13rem; }
+body[data-layout="tall"] .chooser__opts{ inline-size:100%; }
+body[data-layout="tall"] .chooser__cards{ gap:.5rem; max-block-size:none; overflow:visible; }
+body[data-layout="tall"] .chooser__cards .opt .tcard{ --cw:10.6rem; }
+body[data-layout="tall"] .chooser__cards .opt .tile{ --tw:4.6rem; }
+body[data-layout="tall"] .bare{ inline-size:7rem; block-size:5.6rem; }
 
 /* 縦持ちでは選択パネルを下から出す */
 .stage[data-mode="tall"] ~ .chooser .chooser__panel,

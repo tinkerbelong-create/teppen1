@@ -167,6 +167,12 @@
   background:var(--bolt); color:#3A2A00;
   font-size:0.7rem; padding:.1em 0; letter-spacing:.08em;
 }
+/* 相手の選手の「引き抜ける」は、顔を隠さないよう左上の小さな印にする */
+.opp .tile .card__hot{
+  inset-block:0 auto; inset-inline:0 auto;
+  font-size:.58rem; padding:.05em .4em; letter-spacing:0;
+  border-end-end-radius:var(--r-card);
+}
 .tcard .card__hot{ inset-inline-start:auto; inline-size:auto; padding:.1em .8em; border-start-start-radius:var(--r-card); }
 
 /* 相手の番：自分の札は沈む */

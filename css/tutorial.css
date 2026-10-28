@@ -1,0 +1,48 @@
+/* テッペンとリーヨ！ ── チュートリアルの案内 */
+
+/* ホームの入口 */
+.homebtn--tut{ border-color:rgba(63,174,106,.6); }
+.homebtn--tut b{ color:#8FE0AE; }
+
+/* 案内の吹き出し。盤面・選択パネルより手前に出す */
+.tut{
+  position:fixed; z-index:90;
+  display:grid; gap:.45rem;
+  padding:.7rem .9rem .8rem;
+  background:rgba(8,14,20,.97); color:var(--line);
+  border:0.13rem solid #3FAE6A; border-radius:var(--r-card);
+  box-shadow:0 .8rem 2.2rem rgba(0,0,0,.65);
+  font-family:var(--f-ui); font-size:.86rem; line-height:1.7;
+}
+.tut__head{ display:flex; justify-content:space-between; align-items:center; }
+.tut__tag{ font-size:.66rem; font-weight:700; letter-spacing:.12em; color:#8FE0AE; }
+.tut__quit{
+  background:none; border:1px solid rgba(255,255,255,.25); color:var(--line);
+  border-radius:var(--r-chip); font-size:.66rem; padding:.2em .9em; cursor:pointer; font-family:var(--f-ui);
+  min-block-size:1.8rem;
+}
+.tut__text b{
+  display:block; font-family:var(--f-disp); font-weight:400; font-size:1.02rem; color:var(--bolt);
+  margin-block-end:.15rem;
+}
+.tut__text b.inl{ display:inline; font-family:var(--f-ui); font-weight:700; font-size:inherit; margin:0; }
+.tut__foot{ display:flex; justify-content:flex-end; }
+.tut__foot:empty{ display:none; }
+.tut__next{ padding:.55em 1.8em; }
+
+/* 説明を読んでいるあいだは盤面をさわれないようにする（透明な幕） */
+.tut-block{ position:fixed; inset:0; z-index:89; }
+
+/* 説明している部分を目立たせる */
+.tut-focus{
+  outline:0.2rem solid #3FAE6A; outline-offset:-0.1rem;
+  animation:tutFocus 1.4s ease-in-out infinite;
+}
+@keyframes tutFocus{
+  0%,100%{ outline-color:rgba(63,174,106,1); }
+  50%    { outline-color:rgba(63,174,106,.35); }
+}
+@media (prefers-reduced-motion: reduce){ .tut-focus{ animation:none; } }
+
+body[data-layout="tall"] .tut{ font-size:.78rem; line-height:1.6; padding:.55rem .7rem .65rem; }
+body[data-layout="tall"] .tut__text b{ font-size:.9rem; }

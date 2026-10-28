@@ -294,6 +294,9 @@
   pointer-events:auto;
 }
 .finish__word{ font-family:var(--f-disp); font-size:4rem; color:var(--bolt); }
+body[data-layout="tall"] .finish__word{ font-size:2.3rem; text-align:center; }
+body[data-layout="tall"] .finish__scores div{ min-inline-size:16rem; }
+.finish__btns{ display:flex; gap:.8rem; flex-wrap:wrap; justify-content:center; }
 .finish__sub{ font-size:.95rem; opacity:.8; text-align:center; line-height:1.8; }
 .finish__scores{ display:grid; gap:.35rem; font-family:var(--f-num); font-size:1rem; }
 .finish__scores div{ display:flex; gap:2rem; justify-content:space-between; min-inline-size:22rem; }

@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="css/card.css">
 <link rel="stylesheet" href="css/board.css">
 <link rel="stylesheet" href="css/fx.css">
+<link rel="stylesheet" href="css/tutorial.css">
 </head>
 <body>
 
@@ -39,6 +40,9 @@
     </button>
     <button type="button" class="homebtn homebtn--net" id="btnHomeNet" aria-label="みんなで対戦">
       <b>みんなで対戦</b><small>合言葉かリンクで、それぞれのスマホから</small>
+    </button>
+    <button type="button" class="homebtn homebtn--tut" id="btnHomeTut" aria-label="チュートリアル">
+      <b>チュートリアル</b><small>はじめての人へ。案内つきで1試合遊んで、ルールを覚える</small>
     </button>
     <button type="button" class="homebtn homebtn--test" id="btnHomeTest" aria-label="テストプレー">
       <b>テストプレー</b><small>数値をいじる／CPU同士で何百回も回す</small>
@@ -96,7 +100,7 @@
   </section>
 
   <div class="banner" id="banner" hidden>
-    <span id="bannerText"></span>
+    <span class="banner__text"><b id="bannerText"></b><small id="bannerSub"></small></span>
     <button type="button" class="banner__back" id="btnBannerBack" hidden>もどる</button>
   </div>
 </div>
@@ -113,7 +117,10 @@
     </div>
     <div class="chooser__body">
       <div class="chooser__incoming" id="chooserIncoming"></div>
-      <div class="chooser__cards" id="chooserCards"></div>
+      <div class="chooser__opts">
+        <div class="chooser__cap" id="chooserCardsCap" hidden></div>
+        <div class="chooser__cards" id="chooserCards"></div>
+      </div>
     </div>
     <div class="chooser__foot" id="chooserFoot"></div>
   </div>
@@ -322,6 +329,7 @@
 <script src="js/fx.js"></script>
 <script src="js/wire.js"></script>
 <script src="js/net.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

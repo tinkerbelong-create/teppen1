@@ -347,13 +347,21 @@
   }
 
   /* ---------------- 決着 ---------------- */
-  function finish(html, onAgain) {
+  /* buttons … [{ label, sub(控えめな見た目にするか), fn }]
+   * 古い呼び方（関数を1つ渡す）も受け付ける。そのときは「ホームへ」だけを出す。 */
+  function finish(html, buttons) {
     busy();
+    if (typeof buttons === 'function') buttons = [{ label: 'ホームへ', fn: buttons }];
     var f = R.el('div', 'finish');
     f.innerHTML = html;
-    var btn = R.el('button', 'btn btn--go', 'もう1試合');
-    btn.addEventListener('click', function () { f.remove(); root.style.pointerEvents = 'none'; onAgain(); });
-    f.appendChild(btn);
+    var row = R.el('div', 'finish__btns');
+    (buttons || []).forEach(function (b) {
+      var btn = R.el('button', 'btn ' + (b.sub ? 'btn--sub' : 'btn--go'), b.label);
+      btn.type = 'button';
+      btn.addEventListener('click', function () { f.remove(); root.style.pointerEvents = 'none'; b.fn(); });
+      row.appendChild(btn);
+    });
+    f.appendChild(row);
     root.appendChild(f);
   }
 

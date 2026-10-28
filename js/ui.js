@@ -69,6 +69,7 @@
     var c = LAYOUT[mode];
     var st = $('stage');
     if (st) st.dataset.mode = mode;
+    document.body.dataset.layout = mode;
     /* 起動直後にウィンドウの大きさが 0 で返ってくることがある。下限を入れておく */
     var u = Math.max(0.3, Math.min(w / c.w, h / c.h));
     document.documentElement.style.fontSize = (c.rem * u) + 'px';
@@ -195,6 +196,7 @@
     /* 前の試合がまだ走っていたら止める。
      * 止めないと2つの試合が同じ盤面に描き込み、決着表示まで混ざる。 */
     if (S.game) S.game.aborted = true;
+    stopTutorial();
 
     var o = readSetup();
     var n, i, j;
@@ -260,6 +262,66 @@
         '<br>この文言を作者に伝えてください（' + g.turnCount + '手目）</div>',
         function () { showHome(); });
     });
+  }
+
+  /* ================================================================
+   * チュートリアル（台本は js/tutorial.js）
+   * 本物の盤面とルール処理をそのまま使い、手札と押せる手だけを決めておく。
+   * ============================================================== */
+  var Tut = NS.Tutorial;
+
+  function stopTutorial() {
+    if (!S.tutorial) return;
+    S.tutorial = false;
+    Tut.stop();
+  }
+
+  function startTutorial() {
+    if (S.game) S.game.aborted = true;
+    closeDialogs();
+    S.mode = 'cpu';
+    S.remoteSeats = [];
+    S.human = 0;
+    S.tutorial = true;
+
+    var st = Tut.settings();
+    st.coin = { start: CFG.coin.start, onReact: CFG.coin.onReact, onReactStreak: CFG.coin.onReactStreak,
+      onConcede: CFG.coin.onConcede, onPlay: CFG.coin.onPlay, reactDraw: CFG.coin.reactDraw, cap: CFG.coin.cap };
+    st.seed = (Math.random() * 1e9) | 0;
+
+    var agents = [Tut.wrapHuman(humanAgent()), Tut.cpuAgent()];
+    var g = E.createGame(st, agents, Tut.wrapEvent(onEvent));
+    Tut.setup(g);
+    Tut.onQuit = function () { showHome(); };
+
+    S.game = g;
+    S.prevBall = g.ball;
+    S.sel = null; S.targeting = null; S.awaitAction = null;
+    lastTurn = -1;
+    $('logList').replaceChildren();
+    $('home').hidden = true;
+    $('stage').hidden = false;
+    Fx.clear();
+    fitStage();
+    renderAll();
+
+    /* 画面が出そろってから案内を始める */
+    setTimeout(function () {
+      if (g !== S.game) return;
+      Tut.intro().then(function () {
+        if (g !== S.game) return;
+        return E.run(g).then(function () {
+          if (g !== S.game || g.endReason === 'aborted') return;
+          return Tut.done().then(function () { showFinish(g); });
+        });
+      }).catch(function (err) {
+        if (g !== S.game) return;
+        console.error(err);
+        Fx.finish('<div class="finish__word">チュートリアルが止まりました</div>' +
+          '<div class="finish__sub">' + (err && err.message ? err.message : err) + '<br>この文言を作者に伝えてください</div>',
+          function () { showHome(); });
+      });
+    }, 350);
   }
 
   /* ================================================================
@@ -731,7 +793,10 @@
   function setBanner(text, back) {
     var b = $('banner');
     if (!text) { b.hidden = true; return; }
-    $('bannerText').textContent = text;
+    /* 「あなたの番　カードをタップ…」の形。全角スペースの前を大きく、後ろを小さく出す */
+    var cut = text.indexOf('　');
+    $('bannerText').textContent = cut < 0 ? text : text.slice(0, cut);
+    $('bannerSub').textContent = cut < 0 ? '' : text.slice(cut + 1);
     var bb = $('btnBannerBack');
     bb.hidden = !back;
     bb.onclick = back ? function (e) { e.stopPropagation(); back(); } : null;
@@ -1003,7 +1068,10 @@
       if (zone === 'own' || zone === 'cap') e.classList.add('is-dim');
     } else if (liveLabel) {
       e.classList.add('is-live');
-      e.appendChild(R.el('div', 'card__hot', liveLabel));
+      /* 相手の選手は顔が小さいので、短い印にする */
+      var hot = R.el('div', 'card__hot', (kinds.scoutPlayer && zone.indexOf('opp') === 0) ? '⚡2' : liveLabel);
+      if (kinds.scoutPlayer) hot.title = 'コイン2個で引き抜ける';
+      e.appendChild(hot);
     }
     if (S.sel === cardData.uid) e.classList.add('is-sel');
 
@@ -1190,6 +1258,13 @@
     var target = (ev.target.closest && (ev.target.closest('.tcard') || ev.target.closest('.tile'))) || el;
     if (!target || !target._card) return;
     var c = target._card;
+    /* 「だれに撃つ？」の最中に相手の顔を押したら、その人に撃つ。
+     * 以前は拡大表示が開いてしまい、名前の部分を押さないと撃てなかった。 */
+    if (S.targeting) {
+      var opp = target.closest && target.closest('.opp');
+      var tpi = opp ? +opp.dataset.pi : -1;
+      if (opp && S.targeting.byTarget[tpi]) { commit(S.targeting.byTarget[tpi]); return; }
+    }
     if (!S.awaitAction || !target._moves || !target._moves.length) { showZoom(c); return; }
     S.sel = (S.sel === c.uid) ? null : c.uid;
     S.targeting = null;
@@ -1208,6 +1283,7 @@
       var inc = $('chooserIncoming');
       inc.replaceChildren();
       if (cfg.incoming) {
+        inc.appendChild(R.el('div', 'chooser__cap', cfg.incomingLabel || '相手の技'));
         var ic = R.techCard(cfg.incoming, { owned: ownedBases(S.game, S.human) });
         ic.style.cursor = 'default';
         inc.appendChild(ic);
@@ -1215,6 +1291,9 @@
 
       var cards = $('chooserCards');
       cards.replaceChildren();
+      var cap = $('chooserCardsCap');
+      cap.textContent = cfg.optionsLabel || '';
+      cap.hidden = !cfg.optionsLabel;
       cfg.options.forEach(function (o) {
         var b = R.el('button', 'opt');
         b.type = 'button';
@@ -1322,9 +1401,9 @@
               sub: req.tech.eff.pierce
                 ? '【貫通】素手キャッチは効かない。必殺キャッチだけが止められる。'
                 : 'どう受ける？　必殺カードで受けると、失敗したときそのカードは山札に消える。',
-              incoming: req.tech,
+              incoming: req.tech, optionsLabel: 'あなたの受け方',
               options: opts,
-              foot: [{ label: '受けない（失点する）', value: { t: 'none' } }]
+              foot: req.noPass ? [] : [{ label: '受けない（失点する）', value: { t: 'none' } }]
             });
           }
 
@@ -1339,9 +1418,9 @@
             return showChooser({
               title: 'ディフェンスを仕掛けられた',
               sub: '振り切れば、そのまま自分の手番になる。失敗するとボールを奪われる。',
-              incoming: req.tech,
+              incoming: req.tech, optionsLabel: 'あなたの受け方',
               options: dopts,
-              foot: [{ label: '振り切らない（ボールを渡す）', value: { t: 'none' } }]
+              foot: req.noPass ? [] : [{ label: '振り切らない（ボールを渡す）', value: { t: 'none' } }]
             });
           }
 
@@ -1409,11 +1488,26 @@
 
     SE.play((g.winner != null && g.winner === S.human) ? 'win' : 'lose');
 
+    if (S.tutorial) {
+      stopTutorial();
+      Fx.finish(
+        '<div class="finish__word">チュートリアル完了！</div>' +
+        '<div class="finish__sub">次は「ひとりで遊ぶ」で、CPUと本番の試合をしてみましょう。</div>',
+        [{ label: 'ひとりで遊ぶ', fn: function () { showHome(); openSetup('solo'); } },
+         { label: 'もう一度チュートリアル', sub: true, fn: startTutorial },
+         { label: 'ホームへ', sub: true, fn: showHome }]);
+      return;
+    }
+
     Fx.finish(
       '<div class="finish__word">' + word + '</div>' +
       '<div class="finish__scores">' + scores + '</div>' +
       '<div class="finish__sub">' + reason + '　／　' + g.turnCount + '手　／　山札のこり ' + g.deck.length + '枚</div>',
-      function () { showHome(); });
+      /* CPU戦は同じ設定ですぐ次の試合へ。通信対戦は集まり直すのでホームだけ */
+      (S.mode === 'cpu'
+        ? [{ label: '同じ設定でもう1試合', fn: function () { startGame(); } },
+           { label: 'ホームへ', sub: true, fn: showHome }]
+        : [{ label: 'ホームへ', fn: showHome }]));
   }
 
   /* ================================================================
@@ -1752,6 +1846,7 @@
 
   function showHome() {
     if (S.game) { S.game.aborted = true; S.game = null; }
+    stopTutorial();
     S.mode = 'cpu';
     closeDialogs();
     Fx.clear();
@@ -1927,7 +2022,7 @@
    * ============================================================== */
   function boot() {
     fitStage();
-    function refit() { fitStage(); if (S.game) renderAll(); }
+    function refit() { fitStage(); if (S.game) renderAll(); if (S.tutorial) Tut.place(); }
     global.addEventListener('resize', refit);
     global.addEventListener('orientationchange', function () { setTimeout(refit, 250); });
     global.addEventListener('load', refit);
@@ -1947,10 +2042,15 @@
       }
     }, true);
 
-    /* ---- ホーム ---- */
+    /* ---- ホーム ----
+     * テストプレー（数値いじり・CPU一括対戦）は製品版の画面には出さない。
+     * 開発用.html（＝ index.html?dev）から開いたときだけ出す。 */
+    var DEV = /[?&]dev(=|&|$)/.test(global.location.search);
+    if (!DEV) { var ht = $('btnHomeTest'); if (ht) ht.remove(); }
     $('btnHomeSolo').addEventListener('click', function () { SE.play('press'); openSetup('solo'); });
     $('btnHomeNet').addEventListener('click', function () { SE.play('press'); netOpen(); });
-    $('btnHomeTest').addEventListener('click', function () { SE.play('press'); openSetup('test'); });
+    $('btnHomeTut').addEventListener('click', function () { SE.play('press'); startTutorial(); });
+    if ($('btnHomeTest')) $('btnHomeTest').addEventListener('click', function () { SE.play('press'); openSetup('test'); });
     $('btnHomeSound').addEventListener('click', function () {
       SE.setOn(!SE.isOn());
       syncSoundBtn();
@@ -1962,7 +2062,11 @@
     $('btnStartTest').addEventListener('click', function () { $('setup').close(); startGame(); });
     $('btnSimOpen').addEventListener('click', function () { $('setup').close(); $('simdlg').showModal(); });
     $('btnMakeRoom').addEventListener('click', netCreate);
-    $('btnToHome').addEventListener('click', showHome);
+    $('btnToHome').addEventListener('click', function () {
+      /* 試合の途中なら、押し間違えに備えて確認する */
+      if (S.game && !S.game.over && !global.confirm('試合をやめて、ホームにもどりますか？')) return;
+      showHome();
+    });
     $('btnPresetSave').addEventListener('click', savePresetNow);
 
     $('btnSimRun').addEventListener('click', runSim);

@@ -126,6 +126,9 @@ button,input,select{ font:inherit; color:inherit; }
   text-align:center;
 }
 .home[hidden]{ display:none; }
+/* hidden をつけた部品は、ほかの指定より優先して必ず隠す
+ * （.btn などに display を指定していると、hidden が効かなくなるため） */
+[hidden]{ display:none !important; }
 
 .home__badge{ inline-size:clamp(6rem,15vh,9rem); aspect-ratio:1; filter:drop-shadow(0 .5rem 1.6rem rgba(255,206,31,.28)); }
 .home__badge svg{ inline-size:100%; block-size:100%; }
