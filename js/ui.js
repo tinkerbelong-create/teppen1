@@ -103,10 +103,18 @@
 
       var box = R.el('div');
       box.appendChild(R.el('b', null, c.name));
+      /* この円堂守だけが撃てる2つのワザ。シュートは一緒に必要な選手まで書く
+       * （書かないと、選手を集めても自分の円堂では撃てない、が起きる） */
       var mine = R.techsOf(c);
-      box.appendChild(R.el('small', null, mine.main.concat(mine.sub).map(function (t) {
-        return t.name + (t.dice ? '（' + R.diceLabel(t.dice) + '）' : '');
-      }).join(' / ')));
+      mine.main.concat(mine.sub).forEach(function (t) {
+        var txt;
+        if (t.type === 'キャッチ') txt = 'キーパー技：' + t.name + '（' + R.diceLabel(t.dice) + 'で成功）';
+        else {
+          var mates = [t.main].concat(t.req).filter(function (x) { return x !== '円堂'; });
+          txt = 'シュート技：' + t.name + '（' + mates.join('・') + 'と）';
+        }
+        box.appendChild(R.el('small', null, txt));
+      });
       b.appendChild(box);
 
       b.addEventListener('click', function () { S.myCap = c.cap; syncSetup(); });
@@ -822,7 +830,12 @@
   function ownedBases(g, pi) {
     var o = {};
     if (pi < 0) return o;
-    E.ownedChars(g, pi).forEach(function (c) { o[c.base] = true; });
+    E.ownedChars(g, pi).forEach(function (c) {
+      /* キャプテンの円堂は番号ごとに分けて覚える。
+       * 円堂の技は番号が合う円堂守だけが撃てるため（ほかの円堂の技を「そろった」と見せない） */
+      if (c.cap) o['円堂#' + c.cap] = true;
+      else o[c.base] = true;
+    });
     return o;
   }
 

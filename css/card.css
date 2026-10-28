@@ -127,6 +127,15 @@
   box-shadow:0 0 0 0.11rem var(--paper), 0 1px 3px rgba(0,0,0,.7);
 }
 .rchip.is-missing{ filter:grayscale(1) brightness(.55); box-shadow:0 0 0 0.11rem var(--raimon); }
+/* 円堂の番号（①〜④）。どの円堂守のワザかを顔の右下に出す */
+.rchip--cap{ position:relative; }
+.rchip__no{
+  position:absolute; inset-inline-end:-0.35em; inset-block-end:-0.3em;
+  font-family:var(--f-ui); font-weight:900; font-size:calc(var(--cw) * .06); line-height:1;
+  background:var(--bolt); color:#2A1D00; border-radius:50%;
+  padding:.08em .12em; box-shadow:0 0 0 0.08rem var(--ink);
+}
+.rchip.is-missing .rchip__no{ background:#9AA3AD; }
 
 /* 出目 */
 .dice-need{
@@ -139,6 +148,7 @@
   padding:.12em .5em; border-radius:var(--r-btn); white-space:nowrap;
 }
 .tag--pierce{ background:var(--raimon); color:#fff; }
+.tag--cap{ background:var(--paper); color:var(--ink); }
 
 /* 種別アイコン */
 .ic{

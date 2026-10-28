@@ -31,6 +31,13 @@
     });
   });
 
+  /* 円堂が関わるワザは、決まった番号の円堂守だけが撃てる（data.js の captains[].only）。
+   * ワザの名前 → 円堂の番号。番号つきで見せないと「顔はそろったのに撃てない」が起きる */
+  var CAP_OF = {};
+  DATA.captains.forEach(function (cp) { (cp.only || []).forEach(function (n) { CAP_OF[n] = cp.cap; }); });
+  var CAPMARK = ['', '①', '②', '③', '④'];
+  function capOf(t) { return t && CAP_OF[t.name] || 0; }
+
   function techsOf(ch) {
     var inv = INV[ch.base] || { main: [], sub: [] };
     var m = inv.main.slice(), s = inv.sub.slice();
@@ -85,7 +92,7 @@
   }
 
   /* 必要な選手を示す、小さい丸い顔 */
-  function reqChip(base, owned) {
+  function reqChip(base, owned, capNo) {
     var src = DATA.charByBase[base];
     var e = el('span', 'rchip' + (owned === false ? ' is-missing' : ''));
     if (src) {
@@ -95,6 +102,12 @@
       e.style.backgroundPosition = f.x + '% ' + f.y + '%';
     }
     e.title = base;
+    /* 円堂には番号をつける（どの円堂守のワザか分かるように） */
+    if (base === '円堂' && capNo) {
+      e.classList.add('rchip--cap');
+      e.appendChild(el('b', 'rchip__no', CAPMARK[capNo]));
+      e.title = '円堂守' + CAPMARK[capNo];
+    }
     return e;
   }
 
@@ -115,6 +128,7 @@
     top.appendChild(icon(t.type));
     top.appendChild(el('span', 'tcard__name', t.name));
     if (t.eff.pierce) top.appendChild(el('span', 'tag tag--pierce', '貫通'));
+    var cn = capOf(t);
     e.appendChild(top);
 
     var foot = el('div', 'tcard__foot');
@@ -124,11 +138,15 @@
     var mains = [t.main].concat(t.req);
     mains.forEach(function (b, i) {
       if (i) foot.dataset.combo = '1';
-      who.appendChild(reqChip(b, owned ? !!owned[b] : undefined));
+      /* 円堂は、キャプテンの番号が合っているときだけ「持っている」 */
+      var has = !owned ? undefined : (b === '円堂' && cn) ? !!owned['円堂#' + cn] : !!owned[b];
+      who.appendChild(reqChip(b, has, b === '円堂' ? cn : 0));
     });
     foot.appendChild(who);
 
     var info = el('div', 'tcard__info');
+    /* どの円堂守のワザか（キャプテンがこの番号の人だけが撃てる） */
+    if (cn) info.appendChild(el('span', 'tag tag--cap', '円堂' + CAPMARK[cn] + 'の技'));
     if (t.dice) info.appendChild(el('span', 'dice-need', diceLabel(t.dice) + ' で成功'));
     if (t.efftxt) info.appendChild(el('span', 'tcard__eff', t.efftxt));
     foot.appendChild(info);
@@ -227,10 +245,13 @@
       var line = el('div', 'big__line');
       line.appendChild(el('span', 'big__cap', '必要な選手'));
       var who = el('span', 'big__who');
+      var bcn = capOf(c);
       [c.main].concat(c.req).forEach(function (b) {
         var w = el('span', 'big__whoone');
-        w.appendChild(reqChip(b));
-        w.appendChild(el('span', null, b));
+        var isCap = (b === '円堂' && bcn);
+        w.appendChild(reqChip(b, undefined, isCap ? bcn : 0));
+        w.appendChild(el('span', null, isCap
+          ? '円堂守' + CAPMARK[bcn] + '（キャプテンが円堂守' + CAPMARK[bcn] + 'の人だけ）' : b));
         who.appendChild(w);
       });
       line.appendChild(who);
@@ -304,7 +325,7 @@
 
   NS.Render = {
     el: el, icon: icon, diceLabel: diceLabel, techsOf: techsOf, INV: INV,
-    faceTile: faceTile, techCard: techCard, reqChip: reqChip,
+    faceTile: faceTile, techCard: techCard, reqChip: reqChip, capOf: capOf, CAPMARK: CAPMARK,
     coinStack: coinStack, pile: pile, pileChip: pileChip, counter: counter, bigCard: bigCard, card: card,
     url: function (p) { return NS.asset(p); }
   };
